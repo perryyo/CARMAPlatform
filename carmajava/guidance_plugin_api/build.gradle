@@ -22,10 +22,16 @@
  which usually occur on minor and major version numbers.
 */
 
+repositories {
+    jcenter()
+}
+
 dependencies {
   /* Example of an external maven artifact dependency */
   /* compile 'org.ros.rosjava_core:rosjava:[0.2,)' */
   /* Example of a local subproject dependency */ 
   /* compile project(':sibling_gradle_project') */
+    testCompile "junit:junit:4.12"
+    testCompile "org.mockito:mockito-core:2.+"
 }
 
