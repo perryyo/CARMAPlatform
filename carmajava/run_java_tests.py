@@ -15,7 +15,7 @@ if path.exists(project_root + "/src/carmajava"):
 elif path.exists(project_root + "/src/CarmaPlatform/carmajava"):
     carmajava_path = project_root + "/src/CarmaPlatform/carmajava"
 else:
-    carmajava_path = project_root + "/src/host/home/ubuntu/CarmaPlatform"
+    carmajava_path = project_root + "/src/host/home/ubuntu/CarmaPlatform/carmajava"
 
 print ">>> Moving into project directory..."
 chdir(carmajava_path)
