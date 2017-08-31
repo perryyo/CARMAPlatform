@@ -52,6 +52,18 @@ subprojects {
      */
     /* apply plugin: "eclipse" */
     /* apply plugin: "idea"    */
+
+    test {
+        copy {
+            from ("${projectDir}/build/test-results") {
+                exclude "**/binary"
+                include "**/*.xml"
+            }
+
+            into "${projectDir}/../build/test-results"
+        }
+    }
+
 }
 
 /*

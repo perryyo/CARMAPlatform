@@ -25,6 +25,7 @@ generate_rosjava_messages(
 # Note that the catkin_create_rosjava_xxx scripts will usually automatically
 # add tasks to this for you when you create subprojects.
 catkin_rosjava_setup(installApp publish)
+catkin_add_nosetests(run_java_tests.py)
 
 
 # make sure messages get built first if genjava is enabled
