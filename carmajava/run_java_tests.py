@@ -16,7 +16,7 @@ else:
     carmajava_path = project_root + "/src/CarmaPlatform/carmajava"
 
 print ">>> Moving into project directory..."
-chdir(project_root + "/src/carmajava")
+chdir(carmajava_path)
 print ">>> Gradling tests..."
 
 test_result_code = call([carmajava_path + "/gradlew", "test"])
@@ -29,6 +29,13 @@ else:
 print ">>> Copying test results..."
 test_destination_folder = project_root + "/build/test_results/carma/"
 test_result_folder = carmajava_path + "/build/test-results"
+if not path.exists(test_result_folder):
+    print ">>> No test results found..."
+    print ">>> Returning to build folder..."
+    chdir(start_folder)
+    print ">>> Exiting..."
+    exit(1)
+
 if path.exists(test_destination_folder):
     rmtree(test_destination_folder)
 copytree(test_result_folder, test_destination_folder)
