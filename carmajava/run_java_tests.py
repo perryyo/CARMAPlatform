@@ -12,8 +12,10 @@ project_root = devel_prefix_path[0] # THIS MAY ONLY BE BASED ON CONVENTION, PROB
 # Supporting alternate checkout locations
 if path.exists(project_root + "/src/carmajava"):
     carmajava_path = project_root + "/src/carmajava"
-else:
+elif path.exists(project_root + "/src/CarmaPlatform/carmajava"):
     carmajava_path = project_root + "/src/CarmaPlatform/carmajava"
+else:
+    carmajava_path = project_root + "/src/host/home/ubuntu/CarmaPlatform"
 
 print ">>> Moving into project directory..."
 chdir(carmajava_path)
@@ -39,6 +41,7 @@ if not path.exists(test_result_folder):
 if path.exists(test_destination_folder):
     rmtree(test_destination_folder)
 copytree(test_result_folder, test_destination_folder)
+rmtree(test_result_folder)
 
 print ">>> Create aggregate test result report..."
 aggregate_test_root = ET.Element("testsuite")
