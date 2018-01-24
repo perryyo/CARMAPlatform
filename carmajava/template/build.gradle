@@ -39,8 +39,17 @@ dependencies {
   compile 'org.ros.rosjava_messages:std_srvs:1.11.2'
   compile 'org.ros.rosjava_messages:cav_msgs:0.1.0'
   compile 'org.ros.rosjava_messages:cav_srvs:0.1.0'
+   testCompile 'junit:junit:4.12'
   /* Local subproject dependency */
   compile project(':rosutils')
+  testCompile project (path: ':rosutils', configuration: 'rosUtilsTestArtifacts')
+}
+
+test {
+    testLogging {
+        // Show that tests are run in the command-line output
+        events 'started', 'passed'
+    }
 }
 
 installApp {
