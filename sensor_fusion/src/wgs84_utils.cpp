@@ -112,3 +112,53 @@ void wgs84_utils::convertToOdom(const wgs84_utils::wgs84_coordinate &src,
 
     out_rot =  neu_odom_rot*q_offset*odom_rot_ref;
 }
+
+/**
+ * Converts a given WSG-84 geodesic location into a 3d cartesian point
+ * The returned 3d point is defined relative to a frame which has a transform with the ECEF frame.
+ * @param location The geodesic location to convert
+ * @param frame2ecefTransform A transform which defines the location of the ECEF frame relative to the 3d point's frame of origin
+ * @return The calculated 3d point
+ */
+tf2::Transform wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordinate &loc, tf2::Transform ecef_in_ned) {
+
+    constexpr double Rea = 6378137.0; // Semi-major axis radius meters
+    constexpr double Rea_sqr = Rea*Rea;
+    constexpr double f = 1.0 / 298.257223563; //The flattening factor
+    constexpr double Reb = Rea * (1.0 - f); // //The semi-minor axis = 6356752.0
+    constexpr double Reb_sqr = Reb*Reb;
+    constexpr double e = 0.08181919084262149; // The first eccentricity (hard coded as optimization) calculated as Math.sqrt(Rea*Rea - Reb*Reb) / Rea;
+    constexpr double e_sqr = e*e;
+    constexpr double e_p = 0.08209443794969568; // e prime (hard coded as optimization) calculated as Math.sqrt((Rea_sqr - Reb_sqr) / Reb_sqr);
+
+
+    // frame2ecefTransform needs to define the position of the ecefFrame relative to the desired frame
+    // Put geodesic in proper units
+    double lonRad = loc.lon * DEG2RAD;
+    double latRad = loc.lat * DEG2RAD;
+    double alt = loc.elevation * DEG2RAD;
+
+    double sinLat = sin(latRad);
+    double sinLon = sin(lonRad);
+    double cosLat = cos(latRad);
+    double cosLon = cos(lonRad);
+
+    double Ne = Rea / sqrt(1.0 - e_sqr * sinLat * sinLat);// The prime vertical radius of curvature
+
+    double x = (Ne + alt)*cosLat*cosLon;
+    double y = (Ne + alt)*cosLat*sinLon;
+    double z = (Ne*(1-e_sqr) + alt) * sinLat;
+
+    tf2::Vector3 ecef_point(x,y,z);
+
+    tf2::Vector3 point_in_ned = ecef_in_ned * ecef_point;
+    tf2::Transform pose;
+    pose.setOrigin(point_in_ned);
+    
+    const tf2::Vector3 z_axis(0,0,1);
+    
+    tf2::Quaternion rot_in_ned(z_axis, loc.heading * DEG2RAD);
+    pose.setRotation(rot_in_ned);
+
+    return pose;
+}

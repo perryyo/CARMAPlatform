@@ -33,6 +33,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 #include <eigen3/Eigen/Geometry>
+#include <tf2/LinearMath/Transform.h>
 
 namespace wgs84_utils
 {
@@ -58,5 +59,7 @@ namespace wgs84_utils
                        Eigen::Vector3d& out_pose,
                        Eigen::Quaternion<double>& out_rot
     );
+
+    tf2::Transform geodesic_2_cartesian(const wgs84_coordinate &loc, tf2::Transform ecef_in_ned);
 
 }

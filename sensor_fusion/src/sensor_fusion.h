@@ -56,6 +56,7 @@
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
+#include <tf2/LinearMath/Transform.h>
 
 #include <dynamic_reconfigure/server.h>
 
@@ -66,7 +67,22 @@
 #include <memory>
 
 
+// /**
+//  * Add conversion for tf between Eigen and Transform messages
+//  *
+//  */
+// namespace tf2
+// {
+//     inline
+//     void convert(const geometry_msgs::Transform& trans, geometry_msgs::Pose& pose)
+//     {
+//         pose.orientation = trans.rotation;
+//         pose.position.x = trans.translation.x;
+//         pose.position.y = trans.translation.y;
+//         pose.position.z = trans.translation.z;
+//     }
 
+// }
 
 /**
  * @brief A ROS node that monitors multiple sources to produce a filtered version

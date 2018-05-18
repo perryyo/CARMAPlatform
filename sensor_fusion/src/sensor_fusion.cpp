@@ -574,9 +574,12 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     obj.presence_vector = 0;
 
     geometry_msgs::TransformStamped odom_tf, ned_odom_tf;
+    tf2::Stamped<tf2::Transform> ecef_in_ned_tf;
     try {
+        // TODO the time lookup might drop the bsm (Is that really an issue when they come in at 10Hz)
         odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, msg->header.stamp);
         ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, msg->header.stamp);
+        tf2::fromMsg(tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp), ecef_in_ned_tf);
     } catch (tf2::TransformException&ex) {
         ROS_WARN_STREAM(ex.what());
         return;
@@ -619,6 +622,19 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
 
     Eigen::Quaterniond out_rot;
     Eigen::Vector3d out_pose;
+
+    // tf2::Transform 
+
+    // tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    // tf2::Transform bsm_in_odom = ned_odom_tf.inverse() * bsm_in_map_tf;
+
+    
+    
+    // Eigen::Vector3d out_pose(bsm_in_odom.transform.translation.x, bsm_in_odom.transform.translation.y,
+    //                                        bsm_in_odom.transform.translation.z);
+    
+    // Eigen::Quaterniond out_rot(ned_odom_tf.transform.rotation.w, ned_odom_tf.transform.rotation.x, ned_odom_tf.transform.rotation.y,
+    //                                        ned_odom_tf.transform.rotation.z);
 
     wgs84_utils::convertToOdom(bsm_coord, ref_wgs84, odom_pose, odom_rot, ned_odom_tf_eig, out_pose, out_rot);
 
