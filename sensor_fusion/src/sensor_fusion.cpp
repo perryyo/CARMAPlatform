@@ -620,23 +620,24 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
                       * Eigen::Quaterniond(ned_odom_tf.transform.rotation.w, ned_odom_tf.transform.rotation.x, ned_odom_tf.transform.rotation.y,
                                            ned_odom_tf.transform.rotation.z);
 
-    Eigen::Quaterniond out_rot;
-    Eigen::Vector3d out_pose;
+   // Eigen::Quaterniond out_rot;
+   // Eigen::Vector3d out_pose;
 
     // tf2::Transform 
 
-    // tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
-    // tf2::Transform bsm_in_odom = ned_odom_tf.inverse() * bsm_in_map_tf;
+    tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    tf2::Stamped<tf2::Transform> odom_in_map_tf;
+    tf2::fromMsg(ned_odom_tf, odom_in_map_tf);
+    tf2::Transform bsm_in_odom = bsm_in_map_tf.inverse() * odom_in_map_tf;
+    tf2::Vector3 bsm_trans =bsm_in_odom.getOrigin();
+    tf2::Quaternion bsm_rot = bsm_in_odom.getRotation();
+    
+    
+    Eigen::Vector3d out_pose(bsm_trans.getX(), bsm_trans.getY(), bsm_trans.getZ());
+    
+    Eigen::Quaterniond out_rot(bsm_rot.getW(), bsm_rot.getX(), bsm_rot.getY(), bsm_rot.getZ()); // Quaturniond is a quaturnion with double values
 
-    
-    
-    // Eigen::Vector3d out_pose(bsm_in_odom.transform.translation.x, bsm_in_odom.transform.translation.y,
-    //                                        bsm_in_odom.transform.translation.z);
-    
-    // Eigen::Quaterniond out_rot(ned_odom_tf.transform.rotation.w, ned_odom_tf.transform.rotation.x, ned_odom_tf.transform.rotation.y,
-    //                                        ned_odom_tf.transform.rotation.z);
-
-    wgs84_utils::convertToOdom(bsm_coord, ref_wgs84, odom_pose, odom_rot, ned_odom_tf_eig, out_pose, out_rot);
+    //wgs84_utils::convertToOdom(bsm_coord, ref_wgs84, odom_pose, odom_rot, ned_odom_tf_eig, out_pose, out_rot);
 
     obj.presence_vector |= cav_msgs::ExternalObject::POSE_PRESENCE_VECTOR;
 
