@@ -254,10 +254,18 @@
                to="/$(arg TOP_NS)/$(arg MSG_NS)/map"/>
         <remap from="heading"
                to="/$(arg TOP_NS)/$(arg SF_NS)/filtered/heading"/>
-        <remap from="nav_sat_fix"
+        <!-- <remap from="nav_sat_fix"
                to="/$(arg TOP_NS)/$(arg SF_NS)/filtered/nav_sat_fix"/>
         <remap from="odometry"
-               to="/$(arg TOP_NS)/$(arg SF_NS)/filtered/odometry"/>
+               to="/$(arg TOP_NS)/$(arg SF_NS)/filtered/odometry"/> 
+               TODO undo-->
+        <remap from="nav_sat_fix"
+               to="/saxton_cav/drivers/pin_point_application/position/nav_sat_fix"/> 
+        <remap from="odometry"
+               to="/saxton_cav/drivers/pin_point_application/position/odometry"/>
+
+
+
         <remap from="objects"
                to="/$(arg TOP_NS)/$(arg SF_NS)/filtered/tracked_objects"/>
         <remap from="velocity"

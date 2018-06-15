@@ -624,11 +624,11 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
    // Eigen::Vector3d out_pose;
 
     // tf2::Transform 
-
+    // TODO need more logging for validation of calculations
     tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
     tf2::Stamped<tf2::Transform> odom_in_map_tf;
     tf2::fromMsg(ned_odom_tf, odom_in_map_tf);
-    tf2::Transform bsm_in_odom = bsm_in_map_tf.inverse() * odom_in_map_tf;
+    tf2::Transform bsm_in_odom = odom_in_map_tf.inverse() * bsm_in_map_tf;
     tf2::Vector3 bsm_trans =bsm_in_odom.getOrigin();
     tf2::Quaternion bsm_rot = bsm_in_odom.getRotation();
     
