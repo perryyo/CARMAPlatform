@@ -192,6 +192,7 @@ class TopicVizNode(object):
       marker.pose = obj.pose.pose
       marker.scale = obj.size
       marker.frame_locked = True
+      marker.id = obj.id
       marker.lifetime = rospy.Duration.from_sec(1)
       # Color of blue
       marker.color.a = 1.0 # Alpha of 1
