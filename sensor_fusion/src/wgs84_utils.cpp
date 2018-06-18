@@ -136,7 +136,7 @@ tf2::Transform wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordi
     // Put geodesic in proper units
     double lonRad = loc.lon * DEG2RAD;
     double latRad = loc.lat * DEG2RAD;
-    double alt = loc.elevation * DEG2RAD;
+    double alt = loc.elevation;
 
     double sinLat = sin(latRad);
     double sinLon = sin(lonRad);
