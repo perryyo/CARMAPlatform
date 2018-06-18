@@ -142,7 +142,7 @@ void PinPointApplication::initialize() {
     updater_.setHardwareID("PinPoint");
     diagnostic_timer_ = nh_->createTimer(ros::Duration(1), &PinPointApplication::diagnosticUpdate, this);
 
-    spin_rate = 50;
+    spin_rate = 20; // TODO return to 50
 }
 
 
@@ -344,7 +344,7 @@ void PinPointApplication::onQuaternionCovarianceChangedHandler(const torc::PinPo
 
 void PinPointApplication::onStatusConditionChangedHandler(
         const torc::PinPointLocalizationClient::PinPointStatusCode &code) {
-
+    return;
     //Check to see if we are already tracking this code
     auto it = code_map_.find(code.code);
     if (it == code_map_.end()) {

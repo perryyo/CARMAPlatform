@@ -560,10 +560,10 @@ void SensorFusionApplication::objects_cb(const cav_msgs::ExternalObjectListConst
 }
 
 void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
-    ROS_DEBUG_STREAM_NAMED("bsm_logger","Received bsm message: " << msg);
+    ROS_INFO_STREAM_NAMED("bsm_logger","Received bsm message: " << msg);
     if(heading_map_.empty() || navsatfix_map_.empty())
     {
-        ROS_DEBUG_STREAM_NAMED("bsm_logger","Received bsm before heading and navsatfix updated unable to process msg");
+        ROS_INFO_STREAM_NAMED("bsm_logger","Received bsm before heading and navsatfix updated unable to process msg");
         return;
     }
     auto hash = std::hash<std::string>();
@@ -573,17 +573,22 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     obj.header.stamp = msg->header.stamp;
     obj.presence_vector = 0;
 
-    geometry_msgs::TransformStamped odom_tf, ned_odom_tf;
+    geometry_msgs::TransformStamped odom_tf, ned_odom_tf, ned_earth_msg_tf;
     tf2::Stamped<tf2::Transform> ecef_in_ned_tf;
     try {
         // TODO the time lookup might drop the bsm (Is that really an issue when they come in at 10Hz)
+        // It is very much an issue. Confirmed during testing that the time lookup fails to get the right object alot
+        // Current workaround is to have roadway subscribe to pinpoint. This prevents the race condition with sensor fusion
         odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, msg->header.stamp);
         ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, msg->header.stamp);
-        tf2::fromMsg(tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp), ecef_in_ned_tf);
+        ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp);
+        tf2::fromMsg(ned_earth_msg_tf, ecef_in_ned_tf);
     } catch (tf2::TransformException&ex) {
         ROS_WARN_STREAM(ex.what());
         return;
     }
+    ROS_INFO_STREAM_NAMED("bsm_logger","odom_in_ned_tf" << ned_odom_tf);
+    ROS_INFO_STREAM_NAMED("bsm_logger","earth_in_ned_tf" << ned_earth_msg_tf);
     obj.presence_vector |= cav_msgs::ExternalObject::ID_PRESENCE_VECTOR;
     obj.id = (msg->core_data.id[0] << 24) | (msg->core_data.id[1] << 16) | (msg->core_data.id[2] << 8) | (msg->core_data.id[3]);
 
@@ -625,11 +630,15 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
 
     // tf2::Transform 
     // TODO need more logging for validation of calculations
+    // All tf2 multiplication works as expected with matrix on right applied to matrix on left to do multiplication
+    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_coord (lat,lon,elev,heading): (" << bsm_coord.lat << ", " << bsm_coord.lon << ", " << bsm_coord.elevation << ", " << bsm_coord.heading << ")");
     tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_map: " << tf2::toMsg(bsm_in_map_tf));
     tf2::Stamped<tf2::Transform> odom_in_map_tf;
     tf2::fromMsg(ned_odom_tf, odom_in_map_tf);
     tf2::Transform bsm_in_odom = odom_in_map_tf.inverse() * bsm_in_map_tf;
-    tf2::Vector3 bsm_trans =bsm_in_odom.getOrigin();
+    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_odom: " << tf2::toMsg(bsm_in_odom));
+    tf2::Vector3 bsm_trans = bsm_in_odom.getOrigin();
     tf2::Quaternion bsm_rot = bsm_in_odom.getRotation();
     
     
@@ -673,7 +682,7 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     obj.size.x = msg->core_data.size.vehicle_length;
     obj.size.y = msg->core_data.size.vehicle_width / 2;
     obj.size.z = 1.5;
-    ROS_DEBUG_STREAM_NAMED("bsm_logger","Converted bsm message: " << obj);
+    ROS_INFO_STREAM_NAMED("bsm_logger","Converted bsm message: " << obj);
 
     std::vector<torc::TrackedObject> objects;
     objects.push_back(torc::toTrackedObject(obj));

@@ -151,7 +151,7 @@ tf2::Transform wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordi
 
     tf2::Vector3 ecef_point(x,y,z);
 
-    tf2::Vector3 point_in_ned = ecef_in_ned * ecef_point;
+    tf2::Vector3 point_in_ned = ecef_in_ned * ecef_point; // TODO This is correct
     tf2::Transform pose;
     pose.setOrigin(point_in_ned);
     
