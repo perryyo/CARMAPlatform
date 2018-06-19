@@ -54,7 +54,7 @@
 
 void TransformMaintainer::heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event)
 {
-  host_vehicle_heading_ = heading.getHeading();
+  host_vehicle_heading_ = event.getMessage()->;
   heading_received_ = true;
 }
 
