@@ -52,15 +52,18 @@
 
 #include "transform_maintainer.h"
 
+void TransformMaintainer::heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event)
+{
+  host_vehicle_heading_ = heading.getHeading();
+  heading_received_ = true;
+}
 
-
-
-void TransformMaintainer::nav_sat_fix_update_cb()
+void TransformMaintainer::nav_sat_fix_update_cb(const ros::MessageEvent<nav_msgs::NavSatFix>& event)
 {
 
 }
 
-void TransformMaintainer::odometry_update_cb() 
+void TransformMaintainer::odometry_update_cb(const ros::MessageEvent<nav_msgs::Odometry>& event) 
 {
 
 }

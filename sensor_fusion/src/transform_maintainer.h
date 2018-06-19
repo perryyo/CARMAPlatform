@@ -50,6 +50,8 @@
 #include <unordered_map>
 #include <memory>
 
+#include "wgs84_utils.h"
+
 
 /**
  * TODO
@@ -69,15 +71,18 @@ public:
      * @param argv Command line arguments
      * @param name Name of the node
      */
-    TransformMaintainer(tf2_ros::Buffer& tf2_buffer, tf2_ros::TransformBroadcaster& tf2_broadcaster)
+    TransformMaintainer(tf2_ros::Buffer& tf2_buffer, tf2_ros::TransformBroadcaster& tf2_broadcaster
+    ,std::unordered_map<std::string, nav_msgs::OdometryConstPtr> odom_map_)
     {
         tf2_buffer_ = tf2_buffer;
         tf2_broadcaster_ = tf2_broadcaster;
     }
 
-    void nav_sat_fix_update_cb();
+    void heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event);
 
-    void odometry_update_cb();
+    void nav_sat_fix_update_cb(const ros::MessageEvent<nav_msgs::NavSatFix>& event);
+
+    void odometry_update_cb(const ros::MessageEvent<nav_msgs::Odometry>& event);
 
 private:
 
@@ -85,28 +90,28 @@ private:
     tf2_ros::TransformBroadcaster tf2_broadcaster_;
 
       // Host vehicle state variables
-    bool headingReceived = false;
-    bool navSatFixReceived = false;
-    Location hostVehicleLocation;
-    double hostVehicleHeading;
+    bool heading_received_ = false;
+    bool nav_sat_fix_received_ = false;
+    wgs84_utils::wgs84_coordinate host_veh_loc_;
+    double host_veh_heading_;
     // The heading of the vehicle in degrees east of north in an NED frame.
     // Frame ids
-    const std::string earthFrame;
-    const std::string mapFrame;
-    const std::string odomFrame;
-    const std::string baseLinkFrame;
-    const std::string globalPositionSensorFrame;
-    const std::string localPositionSensorFrame;
+    const std::string earth_frame_;
+    const std::string map_frame_;
+    const std::string odom_frame_;
+    const std::string base_link_frame_;
+    const std::string global_pos_sensor_frame_;
+    const std::string local_pos_sensor_frame_;
 
     // Transforms
-    Transform mapToOdom = Transform.identity();
-    Transform earthToMap = null;
-    Transform baseToLocalPositionSensor = null;
-    Transform baseToGlobalPositionSensor = null;
-    Transform odomToBaseLink = Transform.identity();// The odom frame will start in the same orientation as the base_link frame on startup
+    tf2::Transform map_to_odom_ = tf2::Transform::getIdentity();
+    tf2::Transform earth_to_map_;
+    tf2::Transform base_to_local_pos_sensor_;
+    tf2::Transform base_to_global_pos_sensor_;
+    tf2::Transform odom_to_base_link_ = tf2::Transform::getIdentity();// The odom frame will start in the same orientation as the base_link frame on startup
     // Transform Update parameters
-    Time prevMapTime = null;
-    Duration MAP_UPDATE_PERIOD = new Duration(5); // TODO Time in seconds between updating the map frame location
-    int tfSequenceCount = 0;
+    ros::Time prev_map_time_;
+    ros::Duration MAP_UPDATE_PERIOD; // 5.0 TODO Time in seconds between updating the map frame location
+    int tf_sequence_count_ = 0;
 };
 
