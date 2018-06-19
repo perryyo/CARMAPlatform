@@ -52,7 +52,6 @@
 
 #include "wgs84_utils.h"
 
-
 /**
  * TODO
  * @brief A ROS node that monitors multiple sources to produce a filtered version
@@ -64,6 +63,7 @@ class TransformMaintainer
 {
 public:
 
+
     /**
      * TODO
      * @brief Initializes the ROS context of this node
@@ -71,18 +71,26 @@ public:
      * @param argv Command line arguments
      * @param name Name of the node
      */
-    TransformMaintainer(tf2_ros::Buffer& tf2_buffer, tf2_ros::TransformBroadcaster& tf2_broadcaster
-    ,std::unordered_map<std::string, nav_msgs::OdometryConstPtr> odom_map_)
+    TransformMaintainer(tf2_ros::Buffer& tf2_buffer, tf2_ros::TransformBroadcaster& tf2_broadcaster,
+        std::unordered_map<std::string, nav_msgs::OdometryConstPtr> odom_map,
+        std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr> nav_sat_map,
+        std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr> heading_map)
     {
         tf2_buffer_ = tf2_buffer;
         tf2_broadcaster_ = tf2_broadcaster;
     }
 
-    void heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event);
+    void heading_update_cb();
 
-    void nav_sat_fix_update_cb(const ros::MessageEvent<nav_msgs::NavSatFix>& event);
+    void nav_sat_fix_update_cb();
 
-    void odometry_update_cb(const ros::MessageEvent<nav_msgs::Odometry>& event);
+    void odometry_update_cb();
+
+    // void heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event);
+
+    // void nav_sat_fix_update_cb(const ros::MessageEvent<sensor_msgs::NavSatFix>& event);
+
+    // void odometry_update_cb(const ros::MessageEvent<nav_msgs::Odometry>& event);
 
 private:
 
@@ -94,6 +102,11 @@ private:
     bool nav_sat_fix_received_ = false;
     wgs84_utils::wgs84_coordinate host_veh_loc_;
     double host_veh_heading_;
+
+    std::unordered_map<std::string, nav_msgs::OdometryConstPtr> odom_map_;
+    std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr> navsatfix_map_;
+    std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr> heading_map_;
+    
     // The heading of the vehicle in degrees east of north in an NED frame.
     // Frame ids
     const std::string earth_frame_;
@@ -113,5 +126,6 @@ private:
     ros::Time prev_map_time_;
     ros::Duration MAP_UPDATE_PERIOD; // 5.0 TODO Time in seconds between updating the map frame location
     int tf_sequence_count_ = 0;
+    bool first_transform_ = true;
 };
 
