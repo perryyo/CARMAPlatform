@@ -35,6 +35,7 @@
  */
 #include "object_tracker.h"
 #include "twist_history_buffer.h"
+#include "transform_maintainer.h"
 #include <sensor_fusion/SensorFusionConfig.h>
 
 #include <nav_msgs/Odometry.h>

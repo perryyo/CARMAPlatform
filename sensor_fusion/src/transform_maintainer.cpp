@@ -47,6 +47,7 @@
 #include <ros/ros.h>
 
 #include <std::string>
+#include <math.h>
 #include <unordered_map>
 #include <memory>
 
@@ -87,17 +88,24 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     vector<geometry_msgs::TransformStamped> tf_stamped_msgs;
 
     // Update map location on start
-    if (first_transform_) { // TODO Determine earth->map update method || 0 < roadwayMgr.getTime().subtract(prevMapTime).compareTo(MAP_UPDATE_PERIOD)) {
+    if (first_transform_) { 
       // Map will be an NED frame on the current vehicle location
-      earthToMap = gcc.ecefToNEDFromLocaton(hostVehicleLocation);
-      prevMapTime = roadwayMgr.getTime();
+      earth_to_map_ = ecef_to_ned_from_loc(host_veh_loc.latitude, host_veh_loc.longitude, host_veh_loc.altitude);
       first_transform_ = false;
     }
     // Keep publishing transform to maintain timestamp
-    tfStampedMsgs.add(buildTFStamped(earthToMap, earthFrame, mapFrame, roadwayMgr.getTime()));
+    geometry_msgs::TransformStamped earth_to_map_msg;
+    void tf2::transformTF2ToMsg (earth_to_map_, earth_to_map_msg, host_veh_loc.getHeader().getStamp(), earth_frame_, map_frame_);	
+    tf_stamped_msgs.push_back(earth_to_map_msg);
 
     // Calculate map->global_position_sensor transform
-    Point3D globalSensorInMap = gcc.geodesic2Cartesian(hostVehicleLocation, earthToMap.invert());
+
+    wgs84_coordinate host_veh_coord;
+    host_veh_coord.lat = host_veh_loc.latitude;
+    host_veh_coord.lon = host_veh_loc.longitude;
+    host_veh_coord.elevation = host_veh_loc.altitude;
+
+    tf2::Vector3 global_sensor_in_map = wgs84_utils::geodesic_2_cartesian(host_veh_coord, earth_to_map_.invert());
 
     // T_x_y = transform describing location of y with respect to x
     // m = map frame
@@ -107,27 +115,32 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     // p = global position sensor frame
     // We want to find T_m_o. This is the new transform from map to odom.
     // T_m_o = T_m_B * inv(T_o_b)  since b and B are both odom.
-    Vector3 nTranslation = new Vector3(globalSensorInMap.getX(), globalSensorInMap.getY(), globalSensorInMap.getZ());
+    tf2::Vector3 sensor_trans_in_map = global_sensor_in_map.getOrigin();
     // The vehicle heading is relative to NED so over short distances heading in NED = heading in map
-    Vector3 zAxis = new Vector3(0, 0, 1);
-    Quaternion globalSensorRotInMap = Quaternion.fromAxisAngle(zAxis, Math.toRadians(hostVehicleHeading));
-    globalSensorRotInMap = globalSensorRotInMap.normalize();
+    tf2::Vector3 zAxis = tf2::Vector3(0, 0, 1);
+    Quaternion sensor_rot_in_map = tf2::Quaternion(zAxis, heading_map_.begin()->second * DEG2RAD);
+    sensor_rot_in_map = sensor_rot_in_map.normalize();
 
-    Transform T_m_p = new Transform(nTranslation, globalSensorRotInMap);
-    Transform T_B_p = baseToGlobalPositionSensor;
-    Transform T_m_B = T_m_p.multiply(T_B_p.invert());
-    Transform T_o_b = odomToBaseLink;
+    tf2::Transform T_m_p = tf2::Transform(sensor_trans_in_map, sensor_rot_in_map);
+    tf2::Transform T_B_p = base_to_global_pos_sensor_;
+    tf2::Transform T_m_B = T_m_p * T_B_p.invert();
+    tf2::Transform T_o_b = odom_to_base_link_;
 
     // Modify map to odom with the difference from the expected and real sensor positions
-    mapToOdom = T_m_B.multiply(T_o_b.invert());
+    map_to_odom_ = T_m_B * T_o_b.invert();
     // Publish newly calculated transforms
-    tfStampedMsgs.add(buildTFStamped(mapToOdom, mapFrame, odomFrame, roadwayMgr.getTime()));
-    publishTF(tfStampedMsgs);
+    geometry_msgs::TransformStamped map_to_odom_msg;
+    tf2::transformTF2ToMsg(map_to_odom_, map_to_odom_msg,  host_veh_loc.getHeader().getStamp(), map_frame_, odom_frame_);
+    
+    tf_stamped_msgs.push_back(map_to_odom_msg);
+
+    // Publish transform
+    tf2_broadcaster_.sendTransform(tf_stamped_msgs);
 }
 
 void TransformMaintainer::odometry_update_cb() 
 {
-
+  // TODO
 }
 
 // Helper function
@@ -151,7 +164,9 @@ tf2::Transform TransformMaintainer::get_transform(std::string parent_frame, std:
   return tf2::fromMsg(transform_stamped);
 }
 
-tf2::Transform TransformMaintainer::ecef_to_ned(double lat, double lon, double elev) {
+// TODO
+// Lat and lon must be in radians
+tf2::Transform TransformMaintainer::ecef_to_ned_from_loc(double lat, double lon, double elev) {
 
     wgs84_coordinate loc;
     loc.lat = lat;
@@ -160,22 +175,22 @@ tf2::Transform TransformMaintainer::ecef_to_ned(double lat, double lon, double e
   // TODO need to think about this
     tf2::Transform ecef_point = wgs84_utils::geodesic_2_cartesian(loc, tf2::Transform.getIdentity());
 
-    Vector3 trans = new Vector3(locInECEF.getX(), locInECEF.getY(), locInECEF.getZ());
+    tf2::Vector3 trans = tf2::Vector3(locInECEF.getX(), locInECEF.getY(), locInECEF.getZ());
 
     // Rotation matrix of north east down frame with respect to ecef
     // Found at https://en.wikipedia.org/wiki/North_east_down
-    double sinLat = Math.sin(loc.getLatRad());
-    double sinLon = Math.sin(loc.getLonRad());
-    double cosLat = Math.cos(loc.getLatRad());
-    double cosLon = Math.cos(loc.getLonRad());
-    double[][] R = new double[][] {
-      { -sinLat * cosLon, -sinLon,  -cosLat * cosLon },
-      { -sinLat * sinLon,  cosLon,  -cosLat * sinLon },
-      {           cosLat,       0,           -sinLat }
-    };
+    double sinLat = sin(lat);
+    double sinLon = sin(lon);
+    double cosLat = cos(lat);
+    double cosLon = cos(lon);
 
-    Quaternion quat = QuaternionUtils.matToQuaternion(R);
-    return new Transform(trans, quat);
+ 	  tf2::Matrix3x3 rotMat(
+      -sinLat * cosLon, -sinLon,  -cosLat * cosLon,
+      -sinLat * sinLon,  cosLon,  -cosLat * sinLon,
+                cosLat,       0,           -sinLat 
+    );
+    
+    return tf2::Transform(rotMat, trans);
   }
 }
 
