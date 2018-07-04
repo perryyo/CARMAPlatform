@@ -104,6 +104,9 @@ private:
     tf2_ros::Buffer tf2_buffer_;
     ros::Timer update_services_timer_;
     std::unique_ptr<tf2_ros::TransformListener> tf2_listener_;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf2_broadcaster_;
+    // TODO find correct way to initialize this
+    TransformMaintainer tf_maintainer_;
     cav::TwistHistoryBuffer twist_history_buffer_;
 
     std::unique_ptr<ros::NodeHandle> nh_, pnh_;

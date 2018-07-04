@@ -120,7 +120,7 @@ void wgs84_utils::convertToOdom(const wgs84_utils::wgs84_coordinate &src,
  * @param frame2ecefTransform A transform which defines the location of the ECEF frame relative to the 3d point's frame of origin
  * @return The calculated 3d point
  */
-tf2::Transform wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordinate &loc, tf2::Transform ecef_in_ned) {
+tf2::Vector3 wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordinate &loc, tf2::Transform ecef_in_ned) {
 
     constexpr double Rea = 6378137.0; // Semi-major axis radius meters
     constexpr double Rea_sqr = Rea*Rea;
@@ -151,14 +151,28 @@ tf2::Transform wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordi
 
     tf2::Vector3 ecef_point(x,y,z);
 
-    tf2::Vector3 point_in_ned = ecef_in_ned * ecef_point; // TODO This is correct
-    tf2::Transform pose;
-    pose.setOrigin(point_in_ned);
-    
-    const tf2::Vector3 z_axis(0,0,1);
-    
-    tf2::Quaternion rot_in_ned(z_axis, loc.heading * DEG2RAD);
-    pose.setRotation(rot_in_ned);
-
-    return pose;
+    tf2::Vector3 point_in_ned = ecef_in_ned * ecef_point; 
+    return point_in_ned;
 }
+
+// TODO
+// Lat and lon must be in radians
+tf2::Transform wgs84_utils::ecef_to_ned_from_loc(wgs84_coordinate loc) {
+
+    tf2::Vector3 ecef_point = wgs84_utils::geodesic_2_cartesian(loc, tf2::Transform::getIdentity());
+
+    // Rotation matrix of north east down frame with respect to ecef
+    // Found at https://en.wikipedia.org/wiki/North_east_down
+    double sinLat = sin(loc.lat);
+    double sinLon = sin(loc.lon);
+    double cosLat = cos(loc.lat);
+    double cosLon = cos(loc.lon);
+
+ 	  tf2::Matrix3x3 rotMat(
+      -sinLat * cosLon, -sinLon,  -cosLat * cosLon,
+      -sinLat * sinLon,  cosLon,  -cosLat * sinLon,
+                cosLat,       0,           -sinLat 
+    );
+    
+    return tf2::Transform(rotMat, ecef_point);
+  }

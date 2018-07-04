@@ -35,6 +35,7 @@
 #include "sensor_fusion.h"
 #include "wgs84_utils.h"
 #include "timer.h"
+#include "transform_maintainer.h"
 #include <cav_msgs/ConnectedVehicleList.h>
 
 #include <cav_srvs/GetDriversWithCapabilities.h>
@@ -195,6 +196,9 @@ int SensorFusionApplication::run() {
     pnh_.reset(new ros::NodeHandle("~"));
     ros::NodeHandle pnh("filtered");
     tf2_listener_.reset(new tf2_ros::TransformListener(tf2_buffer_));
+    // Setup transform maintainer
+    tf2_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
+    tf_maintainer_.init(&tf2_buffer_, &(*tf2_broadcaster_), odom_map_, navsatfix_map_, heading_map_);
 
     pnh_->param<std::string>("inertial_frame_name",inertial_frame_name_,"odom");
     pnh_->param<std::string>("body_frame_name",body_frame_name_,"base_link");
@@ -351,7 +355,7 @@ void SensorFusionApplication::update_subscribed_services() {
     ret = get_api("position/nav_sat_fix");
     for(const std::string& it : ret)
     {
-        if(sub_map_.find(it) == sub_map_.end())
+        if(sub_map_.find(it) == sub_map_.end()) 
             sub_map_[it] = nh_->subscribe<sensor_msgs::NavSatFix>(it,1,[this](const ros::MessageEvent<sensor_msgs::NavSatFix const>&msg){ navsatfix_cb(msg);});
     }
 
@@ -632,7 +636,14 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     // TODO need more logging for validation of calculations
     // All tf2 multiplication works as expected with matrix on right applied to matrix on left to do multiplication
     ROS_INFO_STREAM_NAMED("bsm_logger","bsm_coord (lat,lon,elev,heading): (" << bsm_coord.lat << ", " << bsm_coord.lon << ", " << bsm_coord.elevation << ", " << bsm_coord.heading << ")");
-    tf2::Transform bsm_in_map_tf = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    // Get bsm position in nef frame
+    tf2::Vector3 bsm_in_map_trans = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    // Apply heading as orientation
+    const tf2::Vector3 z_axis(0,0,1);
+    tf2::Quaternion rot_in_ned(z_axis, bsm_coord.heading * wgs84_utils::DEG2RAD);
+    // BSM transform in map
+    tf2::Transform bsm_in_map_tf(rot_in_ned, bsm_in_map_trans);
+    
     ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_map: " << tf2::toMsg(bsm_in_map_tf));
     tf2::Stamped<tf2::Transform> odom_in_map_tf;
     tf2::fromMsg(ned_odom_tf, odom_in_map_tf);
@@ -710,11 +721,13 @@ void SensorFusionApplication::heading_cb(const ros::MessageEvent<cav_msgs::Headi
 void SensorFusionApplication::navsatfix_cb(const ros::MessageEvent<sensor_msgs::NavSatFix> &event) {
     std::string name = event.getPublisherName();
     navsatfix_map_[name] = event.getMessage();
+    tf_maintainer_.nav_sat_fix_update_cb(); // TODO is this the best place for this
 }
 
 void SensorFusionApplication::odom_cb(const ros::MessageEvent<nav_msgs::Odometry> &event) {
     std::string name = event.getPublisherName();
     odom_map_[name] = event.getMessage();
+    tf_maintainer_.odometry_update_cb(); // TODO is this the best place for this
 }
 
 void SensorFusionApplication::dyn_recfg_cb(sensor_fusion::SensorFusionConfig &cfg, uint32_t level)

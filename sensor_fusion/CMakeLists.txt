@@ -59,7 +59,7 @@ include_directories(
 
 file(GLOB_RECURSE headers */*.hpp */*.h)
 
-add_executable(${PROJECT_NAME}_node ${headers} src/main.cpp src/sensor_fusion.cpp src/wgs84_utils.cpp)
+add_executable(${PROJECT_NAME}_node ${headers} src/main.cpp src/sensor_fusion.cpp src/wgs84_utils.cpp src/transform_maintainer.cpp)
 add_dependencies( ${PROJECT_NAME}_node ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_node
         ${catkin_LIBRARIES}

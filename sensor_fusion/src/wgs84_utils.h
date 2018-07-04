@@ -60,6 +60,8 @@ namespace wgs84_utils
                        Eigen::Quaternion<double>& out_rot
     );
 
-    tf2::Transform geodesic_2_cartesian(const wgs84_coordinate &loc, tf2::Transform ecef_in_ned);
+    tf2::Vector3 geodesic_2_cartesian(const wgs84_coordinate &loc, tf2::Transform ecef_in_ned);
+
+    tf2::Transform ecef_to_ned_from_loc(wgs84_coordinate loc);
 
 }
