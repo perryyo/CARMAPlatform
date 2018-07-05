@@ -29,7 +29,7 @@ bool TransformServer::get_transform_cb(cav_srvs::GetTransform::Request  &req, ca
     res.transform = tfBuffer_.lookupTransform(req.parent_frame, req.child_frame, req.stamp);
     res.error_status = res.NO_ERROR;
   } catch (tf2::ExtrapolationException& ex) {
-    ROS_WARN("| Transform Server | TRANSFORM | transform_server could not extrapolate requested transform. Using latest transform available%s", ex.what());
+    ROS_WARN("| Transform Server | TRANSFORM | transform_server could not extrapolate requested transform. Using latest transform available. Exception: %s", ex.what());
 
     try {
       res.transform = tfBuffer_.lookupTransform(req.parent_frame, req.child_frame, ros::Time(0));

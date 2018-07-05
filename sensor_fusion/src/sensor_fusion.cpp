@@ -196,15 +196,24 @@ int SensorFusionApplication::run() {
     pnh_.reset(new ros::NodeHandle("~"));
     ros::NodeHandle pnh("filtered");
     tf2_listener_.reset(new tf2_ros::TransformListener(tf2_buffer_));
-    // Setup transform maintainer
-    tf2_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
-    tf_maintainer_.init(&tf2_buffer_, &(*tf2_broadcaster_), odom_map_, navsatfix_map_, heading_map_);
 
     pnh_->param<std::string>("inertial_frame_name",inertial_frame_name_,"odom");
     pnh_->param<std::string>("body_frame_name",body_frame_name_,"base_link");
     pnh_->param<std::string>("ned_frame_name",ned_frame_name_,"ned");
+    pnh_->param<std::string>("earth_frame_name",earth_frame_name_,"earth");
+    pnh_->param<std::string>("global_pos_sensor_frame_name",global_pos_sensor_frame_name_,"pinpoint");
+    pnh_->param<std::string>("local_pos_sensor_frame_name",local_pos_sensor_frame_name_,"pinpoint");
     pnh_->param<bool>("use_interface_mgr",use_interface_mgr_,false);
 
+    // Setup transform maintainer
+    tf2_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
+    
+    tf_maintainer_.init(&tf2_buffer_, &(*tf2_broadcaster_),
+     &odom_map_, &navsatfix_map_, &heading_map_,
+     earth_frame_name_, ned_frame_name_, inertial_frame_name_, 
+     body_frame_name_, global_pos_sensor_frame_name_, local_pos_sensor_frame_name_);
+
+    // Use sim time if needed
     bool use_sim_time;
     nh_->param<bool>("/use_sim_time", use_sim_time, false);
 

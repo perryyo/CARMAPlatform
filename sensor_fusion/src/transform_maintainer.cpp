@@ -55,12 +55,12 @@
 void TransformMaintainer::nav_sat_fix_update_cb()
 {
     // Assign the new host vehicle location
-    if (navsatfix_map_.empty() || heading_map_.empty()) {
+    if (navsatfix_map_->empty() || heading_map_->empty()) {
       std::string msg = "TransformMaintainer nav_sat_fix_update_cb called before heading and nav_sat_fix received";
       ROS_WARN_STREAM("TRANSFORM | " << msg);
       return; // If we don't have a heading and a nav sat fix the map->odom transform cannot be calculated
     }
-    sensor_msgs::NavSatFixConstPtr host_veh_loc = navsatfix_map_.begin()->second;
+    sensor_msgs::NavSatFixConstPtr host_veh_loc = navsatfix_map_->begin()->second;
     
     std::string frame_id = host_veh_loc->header.frame_id;
     if (frame_id != global_pos_sensor_frame_) {
@@ -75,6 +75,8 @@ void TransformMaintainer::nav_sat_fix_update_cb()
       try {
         base_to_global_pos_sensor_ = get_transform(base_link_frame_, global_pos_sensor_frame_, ros::Time(0));
       } catch (tf2::TransformException e) {
+        std::string msg = "TransformMaintainer nav_sat_fix_update_cb failed to get transform for global position sensor in base link";
+        ROS_WARN_STREAM("TRANSFORM | " << msg);
         return;
       }
 
@@ -87,7 +89,7 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     host_veh_coord.lat = host_veh_loc->latitude;
     host_veh_coord.lon = host_veh_loc->longitude;
     host_veh_coord.elevation = host_veh_loc->altitude;
-    host_veh_coord.heading = heading_map_.begin()->second->heading;
+    host_veh_coord.heading = heading_map_->begin()->second->heading;
 
     // Update map location on start
     if (no_earth_to_map_) { 
@@ -100,9 +102,56 @@ void TransformMaintainer::nav_sat_fix_update_cb()
      = tf2::toMsg(earth_to_map_, host_veh_loc->header.stamp, earth_frame_, map_frame_);
     
     tf_stamped_msgs.push_back(earth_to_map_msg);
+    // // Calculate map->global_position_sensor transform
+
+    // tf2::Vector3 global_sensor_in_map = wgs84_utils::geodesic_2_cartesian(host_veh_coord, earth_to_map_.inverse());
+
+    // // T_x_y = transform describing location of y with respect to x
+    // // m = map frame
+    // // b = baselink frame (from odometry)
+    // // B = baselink frame (from nav sat fix)
+    // // o = odom frame
+    // // p = global position sensor frame
+    // // We want to find T_m_o. This is the new transform from map to odom.
+    // // T_m_o = T_m_B * inv(T_o_b)  since b and B are both odom.
+    // tf2::Vector3 sensor_trans_in_map = global_sensor_in_map;
+    // // The vehicle heading is relative to NED so over short distances heading in NED = heading in map
+    // tf2::Vector3 zAxis = tf2::Vector3(0, 0, 1);
+    // tf2::Quaternion sensor_rot_in_map(zAxis, host_veh_coord.heading * wgs84_utils::DEG2RAD);
+    // sensor_rot_in_map = sensor_rot_in_map.normalize();
+
+    // tf2::Transform T_m_p = tf2::Transform(sensor_rot_in_map, sensor_trans_in_map);
+    // tf2::Transform T_B_p = base_to_global_pos_sensor_;
+    // tf2::Transform T_m_B = T_m_p * T_B_p.inverse();
+    // tf2::Transform T_o_b = odom_to_base_link_;
+
+    // // Modify map to odom with the difference from the expected and real sensor positions
+    // map_to_odom_ = T_m_B * T_o_b.inverse();
+
+    map_to_odom_ = calculate_map_to_odom_tf(
+      host_veh_coord, base_to_global_pos_sensor_,
+      earth_to_map_, odom_to_base_link_);
+
+    // Publish newly calculated transforms
+    geometry_msgs::TransformStamped map_to_odom_msg 
+      = tf2::toMsg(map_to_odom_,  host_veh_loc->header.stamp, map_frame_, odom_frame_);
+    
+    tf_stamped_msgs.push_back(map_to_odom_msg);
+
+    // Publish transform
+    tf2_broadcaster_->sendTransform(tf_stamped_msgs);
+    ROS_INFO_STREAM("TRANSFORM | Published transforms after nav_sat_fix cb");// TODO remove
+}
+
+// Broken out for unit testing
+  tf2::Transform TransformMaintainer::calculate_map_to_odom_tf(
+    const wgs84_utils::wgs84_coordinate& host_veh_coord,
+    const tf2::Transform&  base_to_global_pos_sensor, const tf2::Transform& earth_to_map,
+    const tf2::Transform& odom_to_base_link)
+  {
     // Calculate map->global_position_sensor transform
 
-    tf2::Vector3 global_sensor_in_map = wgs84_utils::geodesic_2_cartesian(host_veh_coord, earth_to_map_.inverse());
+    tf2::Vector3 global_sensor_in_map = wgs84_utils::geodesic_2_cartesian(host_veh_coord, earth_to_map.inverse());
 
     // T_x_y = transform describing location of y with respect to x
     // m = map frame
@@ -119,21 +168,13 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     sensor_rot_in_map = sensor_rot_in_map.normalize();
 
     tf2::Transform T_m_p = tf2::Transform(sensor_rot_in_map, sensor_trans_in_map);
-    tf2::Transform T_B_p = base_to_global_pos_sensor_;
+    tf2::Transform T_B_p = base_to_global_pos_sensor;
     tf2::Transform T_m_B = T_m_p * T_B_p.inverse();
-    tf2::Transform T_o_b = odom_to_base_link_;
+    tf2::Transform T_o_b = odom_to_base_link;
 
     // Modify map to odom with the difference from the expected and real sensor positions
-    map_to_odom_ = T_m_B * T_o_b.inverse();
-    // Publish newly calculated transforms
-    geometry_msgs::TransformStamped map_to_odom_msg 
-      = tf2::toMsg(map_to_odom_,  host_veh_loc->header.stamp, map_frame_, odom_frame_);
-    
-    tf_stamped_msgs.push_back(map_to_odom_msg);
-
-    // Publish transform
-    tf2_broadcaster_->sendTransform(tf_stamped_msgs);
-}
+    return T_m_B * T_o_b.inverse();
+  }
 
 void TransformMaintainer::odometry_update_cb() 
 {
@@ -143,18 +184,20 @@ void TransformMaintainer::odometry_update_cb()
       try {
         base_to_local_pos_sensor_ = get_transform(base_link_frame_, local_pos_sensor_frame_, ros::Time(0));
       } catch (tf2::TransformException e) {
+        std::string msg = "TransformMaintainer odometry_update_cb failed to get transform for local position sensor in base link";
+        ROS_WARN_STREAM("TRANSFORM | " << msg);
         return;
       }
 
       no_base_to_local_pos_sensor_ = false;
     }
 
-    if (odom_map_.empty()) {
+    if (odom_map_->empty()) {
       std::string msg = "TransformMaintainer odometry_update_cb called before odometry message received";
       ROS_WARN_STREAM("TRANSFORM | " << msg);
       return;
     }
-    nav_msgs::OdometryConstPtr odometry = odom_map_.begin()->second;
+    nav_msgs::OdometryConstPtr odometry = odom_map_->begin()->second;
     std::string parent_frame_id = odometry->header.frame_id;
     std::string child_frame_id = odometry->child_frame_id;
     // If the odometry is already in the base_link frame
@@ -189,9 +232,10 @@ void TransformMaintainer::odometry_update_cb()
       std::string msg =
         "Odometry message with unsupported frames received. ParentFrame: " + parent_frame_id
           + " ChildFrame: " + child_frame_id;
-      ROS_ERROR_STREAM("TRANSFORM | " << msg);//TODO throw exception
-      //throw new IllegalArgumentException(msg);
+      ROS_ERROR_STREAM("TRANSFORM | " << msg);//TODO should we throw an exception here?
     }
+
+    ROS_INFO_STREAM("TRANSFORM | Published transforms after odom cb"); // TODO remove
 }
 
 // Helper function

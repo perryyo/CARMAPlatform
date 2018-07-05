@@ -59,9 +59,21 @@ include_directories(
 
 file(GLOB_RECURSE headers */*.hpp */*.h)
 
-add_executable(${PROJECT_NAME}_node ${headers} src/main.cpp src/sensor_fusion.cpp src/wgs84_utils.cpp src/transform_maintainer.cpp)
+add_executable(${PROJECT_NAME}_node ${headers} src/main.cpp src/sensor_fusion.cpp)
 add_dependencies( ${PROJECT_NAME}_node ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
+
+add_library(transform_maintainer_library src/transform_maintainer.cpp)
+add_dependencies( transform_maintainer_library ${catkin_EXPORTED_TARGETS})
+target_link_libraries( transform_maintainer_library
+  wgs84_utils_library
+)
+
+add_library(wgs84_utils_library src/wgs84_utils.cpp)
+add_dependencies(wgs84_utils_library ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(${PROJECT_NAME}_node
+        wgs84_utils_library
+        transform_maintainer_library
         ${catkin_LIBRARIES}
         ${Boost_LIBRARIES}
         )
@@ -105,4 +117,19 @@ install(DIRECTORY
         cfg
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
         PATTERN ".svn" EXCLUDE
+        )
+
+
+##########
+## Test ##
+##########
+
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+catkin_add_gtest(transform_maintainer_test tests/transform_maintainer_test.cpp)
+
+target_link_libraries( transform_maintainer_test
+        wgs84_utils_library
+        transform_maintainer_library
+        ${Boost_LIBRARIES} 
+        ${catkin_LIBRARIES}
         )

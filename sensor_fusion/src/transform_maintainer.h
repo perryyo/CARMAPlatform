@@ -80,15 +80,25 @@ class TransformMaintainer
 public:
 
     void init(tf2_ros::Buffer* tf2_buffer, tf2_ros::TransformBroadcaster* tf2_broadcaster,
-        const std::unordered_map<std::string, nav_msgs::OdometryConstPtr>& odom_map,
-        const std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr>& navsatfix_map,
-        const std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr>& heading_map)
+        std::unordered_map<std::string, nav_msgs::OdometryConstPtr>* odom_map,
+        std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr>* navsatfix_map,
+        std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr>* heading_map,
+        std::string earth_frame, std::string map_frame, std::string odom_frame, 
+        std::string base_link_frame, std::string global_pos_sensor_frame, std::string local_pos_sensor_frame)
     {
         tf2_buffer_ = tf2_buffer;
         tf2_broadcaster_ = tf2_broadcaster;
+        
         odom_map_ = odom_map;
         navsatfix_map_ = navsatfix_map;
         heading_map_ = heading_map;
+        
+        earth_frame_ = earth_frame;
+        map_frame_ = map_frame;
+        odom_frame_ = odom_frame;
+        base_link_frame_ = base_link_frame;
+        global_pos_sensor_frame_ = global_pos_sensor_frame;
+        local_pos_sensor_frame_ = local_pos_sensor_frame;
     }
     //void heading_update_cb();
 
@@ -97,6 +107,11 @@ public:
     void odometry_update_cb();
 
     tf2::Transform get_transform(std::string parent_frame, std::string child_frame, ros::Time stamp);
+
+    static tf2::Transform calculate_map_to_odom_tf(
+        const wgs84_utils::wgs84_coordinate& host_veh_coord,
+        const tf2::Transform&  base_to_global_pos_sensor, const tf2::Transform& earth_to_map,
+        const tf2::Transform& odom_to_base_link);
 
     // void heading_update_cb(const ros::MessageEvent<cav_msgs::HeadingStamped>& event);
 
@@ -115,9 +130,9 @@ private:
     wgs84_utils::wgs84_coordinate host_veh_loc_;
     double host_veh_heading_;
 
-    std::unordered_map<std::string, nav_msgs::OdometryConstPtr> odom_map_;
-    std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr> navsatfix_map_;
-    std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr> heading_map_;
+    std::unordered_map<std::string, nav_msgs::OdometryConstPtr>* odom_map_;
+    std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr>* navsatfix_map_;
+    std::unordered_map<std::string, cav_msgs::HeadingStampedConstPtr>* heading_map_;
     
     // The heading of the vehicle in degrees east of north in an NED frame.
     // Frame ids
@@ -134,10 +149,7 @@ private:
     tf2::Transform base_to_local_pos_sensor_;
     tf2::Transform base_to_global_pos_sensor_;
     tf2::Transform odom_to_base_link_ = tf2::Transform::getIdentity();// The odom frame will start in the same orientation as the base_link frame on startup
-    // Transform Update parameters
-    ros::Time prev_map_time_;
-    ros::Duration MAP_UPDATE_PERIOD; // 5.0 TODO Time in seconds between updating the map frame location
-    int tf_sequence_count_ = 0;
+
     bool no_earth_to_map_ = true;
     bool no_base_to_local_pos_sensor_ = true;
     bool no_base_to_global_pos_sensor_ = true;
