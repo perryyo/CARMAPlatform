@@ -120,6 +120,7 @@ void wgs84_utils::convertToOdom(const wgs84_utils::wgs84_coordinate &src,
  * @param frame2ecefTransform A transform which defines the location of the ECEF frame relative to the 3d point's frame of origin
  * @return The calculated 3d point
  */
+//TODO lat/lon must be in radians
 tf2::Vector3 wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordinate &loc, tf2::Transform ecef_in_ned) {
 
     constexpr double Rea = 6378137.0; // Semi-major axis radius meters
@@ -134,8 +135,8 @@ tf2::Vector3 wgs84_utils::geodesic_2_cartesian(const wgs84_utils::wgs84_coordina
 
     // frame2ecefTransform needs to define the position of the ecefFrame relative to the desired frame
     // Put geodesic in proper units
-    double lonRad = loc.lon * DEG2RAD;
-    double latRad = loc.lat * DEG2RAD;
+    double lonRad = loc.lon;
+    double latRad = loc.lat;
     double alt = loc.elevation;
 
     double sinLat = sin(latRad);

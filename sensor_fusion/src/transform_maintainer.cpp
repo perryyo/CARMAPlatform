@@ -14,42 +14,6 @@
  * the License.
  */
 
-// #include "object_tracker.h"
-// #include "twist_history_buffer.h"
-// #include <sensor_fusion/SensorFusionConfig.h>
-
-// #include <nav_msgs/Odometry.h>
-// #include <sensor_msgs/NavSatFix.h>
-// #include <geometry_msgs/TwistStamped.h>
-// #include <cav_msgs/HeadingStamped.h>
-// #include <cav_msgs/ExternalObjectList.h>
-// #include <cav_msgs/BSM.h>
-// #include <geometry_msgs/TransformStamped.h>
-// #include <geometry_msgs/PoseStamped.h>
-// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-
-// #include <boost/bind.hpp>
-// #include <boost/uuid/uuid.hpp>
-// #include <boost/uuid/random_generator.hpp>
-// #include <boost/uuid/uuid_io.hpp>
-
-// #include <bondcpp/bond.h>
-
-// #include <tf2_ros/transform_listener.h>
-// #include <tf2_ros/buffer.h>
-// #include <tf2/LinearMath/Transform.h>
-// #include <tf2_ros/transform_broadcaster.h>
-
-// #include <dynamic_reconfigure/server.h>
-
-// #include <ros/ros.h>
-
-// #include <string>
-// #include <math.h>
-// #include <unordered_map>
-// #include <memory>
-// #include <vector>
-
 #include "transform_maintainer.h"
 
 void TransformMaintainer::nav_sat_fix_update_cb()
@@ -85,11 +49,12 @@ void TransformMaintainer::nav_sat_fix_update_cb()
 
     std::vector<geometry_msgs::TransformStamped> tf_stamped_msgs;
 
+    // Extract geodesic data and convert to radians
     wgs84_utils::wgs84_coordinate host_veh_coord;
-    host_veh_coord.lat = host_veh_loc->latitude;
-    host_veh_coord.lon = host_veh_loc->longitude;
+    host_veh_coord.lat = host_veh_loc->latitude * wgs84_utils::DEG2RAD;
+    host_veh_coord.lon = host_veh_loc->longitude * wgs84_utils::DEG2RAD;
     host_veh_coord.elevation = host_veh_loc->altitude;
-    host_veh_coord.heading = heading_map_->begin()->second->heading;
+    host_veh_coord.heading = heading_map_->begin()->second->heading * wgs84_utils::DEG2RAD;
 
     // Update map location on start
     if (no_earth_to_map_) { 
@@ -144,6 +109,8 @@ void TransformMaintainer::nav_sat_fix_update_cb()
 }
 
 // Broken out for unit testing
+// Heading is assumed to be in rad
+// TODO all geodesic angles assumed to be in rad
   tf2::Transform TransformMaintainer::calculate_map_to_odom_tf(
     const wgs84_utils::wgs84_coordinate& host_veh_coord,
     const tf2::Transform&  base_to_global_pos_sensor, const tf2::Transform& earth_to_map,
@@ -163,8 +130,9 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     // T_m_o = T_m_B * inv(T_o_b)  since b and B are both odom.
     tf2::Vector3 sensor_trans_in_map = global_sensor_in_map;
     // The vehicle heading is relative to NED so over short distances heading in NED = heading in map
+    // TODO Should the global sensor frame be flipped?
     tf2::Vector3 zAxis = tf2::Vector3(0, 0, 1);
-    tf2::Quaternion sensor_rot_in_map(zAxis, host_veh_coord.heading * wgs84_utils::DEG2RAD);
+    tf2::Quaternion sensor_rot_in_map(zAxis, host_veh_coord.heading);
     sensor_rot_in_map = sensor_rot_in_map.normalize();
 
     tf2::Transform T_m_p = tf2::Transform(sensor_rot_in_map, sensor_trans_in_map);
@@ -205,7 +173,7 @@ void TransformMaintainer::odometry_update_cb()
       tf2::fromMsg(odometry->pose.pose, odom_to_base_link_);
       // Publish updated transform
       geometry_msgs::TransformStamped odom_to_base_link_msg 
-        = tf2::toMsg(map_to_odom_,  odometry->header.stamp, odom_frame_, base_link_frame_);
+        = tf2::toMsg(odom_to_base_link_,  odometry->header.stamp, odom_frame_, base_link_frame_);
       tf2_broadcaster_->sendTransform(odom_to_base_link_msg);
 
     } else if (parent_frame_id == odom_frame_ && child_frame_id == local_pos_sensor_frame_) {
@@ -225,7 +193,7 @@ void TransformMaintainer::odometry_update_cb()
       odom_to_base_link_ = T_o_b;
       // Publish updated transform
       geometry_msgs::TransformStamped odom_to_base_link_msg 
-        = tf2::toMsg(map_to_odom_,  odometry->header.stamp, odom_frame_, base_link_frame_);
+        = tf2::toMsg(odom_to_base_link_,  odometry->header.stamp, odom_frame_, base_link_frame_);
       tf2_broadcaster_->sendTransform(odom_to_base_link_msg);
 
     } else {
