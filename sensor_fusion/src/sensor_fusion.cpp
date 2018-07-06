@@ -609,11 +609,11 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     obj.bsm_id.resize(msg->core_data.id.size());
     std::copy(msg->core_data.id.begin(),msg->core_data.id.end(),obj.bsm_id.begin());
 
-    wgs84_utils::wgs84_coordinate bsm_coord;
-    bsm_coord.heading   = msg->core_data.heading;
-    bsm_coord.elevation = msg->core_data.elev;
-    bsm_coord.lat       = msg->core_data.latitude;
-    bsm_coord.lon       = msg->core_data.longitude;
+    wgs84_utils::wgs84_coordinate bsm_coord_rad;
+    bsm_coord_rad.heading   = msg->core_data.heading * wgs84_utils::DEG2RAD;
+    bsm_coord_rad.elevation = msg->core_data.elev;
+    bsm_coord_rad.lat       = msg->core_data.latitude * wgs84_utils::DEG2RAD;
+    bsm_coord_rad.lon       = msg->core_data.longitude * wgs84_utils::DEG2RAD;
 
     wgs84_utils::wgs84_coordinate ref_wgs84;
     ref_wgs84.heading   = heading_map_.begin()->second->heading;
@@ -644,12 +644,12 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     // tf2::Transform 
     // TODO need more logging for validation of calculations
     // All tf2 multiplication works as expected with matrix on right applied to matrix on left to do multiplication
-    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_coord (lat,lon,elev,heading): (" << bsm_coord.lat << ", " << bsm_coord.lon << ", " << bsm_coord.elevation << ", " << bsm_coord.heading << ")");
+    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_coord_rad (lat,lon,elev,heading): (" << bsm_coord_rad.lat << ", " << bsm_coord_rad.lon << ", " << bsm_coord_rad.elevation << ", " << bsm_coord_rad.heading << ")");
     // Get bsm position in nef frame
-    tf2::Vector3 bsm_in_map_trans = wgs84_utils::geodesic_2_cartesian(bsm_coord, ecef_in_ned_tf);
+    tf2::Vector3 bsm_in_map_trans = wgs84_utils::geodesic_2_cartesian(bsm_coord_rad, ecef_in_ned_tf);
     // Apply heading as orientation
     const tf2::Vector3 z_axis(0,0,1);
-    tf2::Quaternion rot_in_ned(z_axis, bsm_coord.heading * wgs84_utils::DEG2RAD);
+    tf2::Quaternion rot_in_ned(z_axis, bsm_coord_rad.heading);
     // BSM transform in map
     tf2::Transform bsm_in_map_tf(rot_in_ned, bsm_in_map_trans);
     

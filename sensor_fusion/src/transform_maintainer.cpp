@@ -67,32 +67,8 @@ void TransformMaintainer::nav_sat_fix_update_cb()
      = tf2::toMsg(earth_to_map_, host_veh_loc->header.stamp, earth_frame_, map_frame_);
     
     tf_stamped_msgs.push_back(earth_to_map_msg);
-    // // Calculate map->global_position_sensor transform
 
-    // tf2::Vector3 global_sensor_in_map = wgs84_utils::geodesic_2_cartesian(host_veh_coord, earth_to_map_.inverse());
-
-    // // T_x_y = transform describing location of y with respect to x
-    // // m = map frame
-    // // b = baselink frame (from odometry)
-    // // B = baselink frame (from nav sat fix)
-    // // o = odom frame
-    // // p = global position sensor frame
-    // // We want to find T_m_o. This is the new transform from map to odom.
-    // // T_m_o = T_m_B * inv(T_o_b)  since b and B are both odom.
-    // tf2::Vector3 sensor_trans_in_map = global_sensor_in_map;
-    // // The vehicle heading is relative to NED so over short distances heading in NED = heading in map
-    // tf2::Vector3 zAxis = tf2::Vector3(0, 0, 1);
-    // tf2::Quaternion sensor_rot_in_map(zAxis, host_veh_coord.heading * wgs84_utils::DEG2RAD);
-    // sensor_rot_in_map = sensor_rot_in_map.normalize();
-
-    // tf2::Transform T_m_p = tf2::Transform(sensor_rot_in_map, sensor_trans_in_map);
-    // tf2::Transform T_B_p = base_to_global_pos_sensor_;
-    // tf2::Transform T_m_B = T_m_p * T_B_p.inverse();
-    // tf2::Transform T_o_b = odom_to_base_link_;
-
-    // // Modify map to odom with the difference from the expected and real sensor positions
-    // map_to_odom_ = T_m_B * T_o_b.inverse();
-
+    // Calculate updated tf
     map_to_odom_ = calculate_map_to_odom_tf(
       host_veh_coord, base_to_global_pos_sensor_,
       earth_to_map_, odom_to_base_link_);
@@ -105,7 +81,6 @@ void TransformMaintainer::nav_sat_fix_update_cb()
 
     // Publish transform
     tf2_broadcaster_->sendTransform(tf_stamped_msgs);
-    ROS_INFO_STREAM("TRANSFORM | Published transforms after nav_sat_fix cb");// TODO remove
 }
 
 // Broken out for unit testing
@@ -202,8 +177,6 @@ void TransformMaintainer::odometry_update_cb()
           + " ChildFrame: " + child_frame_id;
       ROS_ERROR_STREAM("TRANSFORM | " << msg);//TODO should we throw an exception here?
     }
-
-    ROS_INFO_STREAM("TRANSFORM | Published transforms after odom cb"); // TODO remove
 }
 
 // Helper function
