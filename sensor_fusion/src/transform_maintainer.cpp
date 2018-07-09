@@ -16,16 +16,42 @@
 
 #include "transform_maintainer.h"
 
-void TransformMaintainer::nav_sat_fix_update_cb()
+void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixConstPtr host_veh_loc, const cav_msgs::HeadingStampedConstPtr heading_msg)
 {
-    // Assign the new host vehicle location
-    if (navsatfix_map_->empty() || heading_map_->empty()) {
-      std::string msg = "TransformMaintainer nav_sat_fix_update_cb called before heading and nav_sat_fix received";
-      ROS_WARN_STREAM("TRANSFORM | " << msg);
-      return; // If we don't have a heading and a nav sat fix the map->odom transform cannot be calculated
-    }
-    sensor_msgs::NavSatFixConstPtr host_veh_loc = navsatfix_map_->begin()->second;
+    // TODO
+    // // Assign the new host vehicle location
+    // if (navsatfix_map_->empty() || heading_map_->empty()) {
+    //   std::string msg = "TransformMaintainer nav_sat_fix_update_cb called before heading and nav_sat_fix received";
+    //   ROS_WARN_STREAM("TRANSFORM | " << msg);
+    //   return; // If we don't have a heading and a nav sat fix the map->odom transform cannot be calculated
+    // }
+    // sensor_msgs::NavSatFixConstPtr host_veh_loc = navsatfix_map_->begin()->second;
     
+    // These values must be time synched
+    if (host_veh_loc->header.stamp != heading_msg->header.stamp) {
+      // TODO return or something
+      ROS_WARN_STREAM("TRANSFORM | Tried to update transforms without synched heading and nav_sat_fix");
+      return;
+    }
+
+    if (last_nav_sat_stamp >= host_veh_loc->header.stamp) {
+      // TODO return or something
+      ROS_WARN_STREAM("TRANSFORM | Old nav sat received prev: " << last_nav_sat_stamp << " update: " << host_veh_loc->header.stamp);
+      return;
+    }
+
+    if (last_heading_stamp >= heading_msg->header.stamp) {
+      // TODO return or something
+      ROS_WARN_STREAM("TRANSFORM | Old heading received prev: " << last_heading_stamp << " update: " << heading_msg->header.stamp);
+      return;
+    }
+
+    last_nav_sat_stamp = host_veh_loc->header.stamp;
+    ROS_WARN_STREAM("TRANSFORM | New nav sat received prev: " << last_nav_sat_stamp);
+
+    last_heading_stamp = heading_msg->header.stamp;
+    ROS_WARN_STREAM("TRANSFORM | New heading received prev: " << last_heading_stamp);
+
     std::string frame_id = host_veh_loc->header.frame_id;
     if (frame_id != global_pos_sensor_frame_) {
       std::string msg = "NavSatFix message with unsupported frame received. Frame: " + frame_id;
@@ -54,7 +80,7 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     host_veh_coord.lat = host_veh_loc->latitude * wgs84_utils::DEG2RAD;
     host_veh_coord.lon = host_veh_loc->longitude * wgs84_utils::DEG2RAD;
     host_veh_coord.elevation = host_veh_loc->altitude;
-    host_veh_coord.heading = heading_map_->begin()->second->heading * wgs84_utils::DEG2RAD;
+    host_veh_coord.heading = heading_msg->heading * wgs84_utils::DEG2RAD;
 
     // Update map location on start
     if (no_earth_to_map_) { 
@@ -68,11 +94,21 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     
     tf_stamped_msgs.push_back(earth_to_map_msg);
 
+    // Get odom->base_link transform which matching timestamp
+    tf2::Transform odom_to_base_link;
+    try {
+      odom_to_base_link =  get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp);
+    } catch (tf2::TransformException e) {
+      std::string msg = "TransformMaintainer nav_sat_fix_update_cb failed to get transform for odom to base_link";
+      ROS_WARN_STREAM("TRANSFORM | " << msg);
+      return;
+    }
+
     // Calculate updated tf
     map_to_odom_ = calculate_map_to_odom_tf(
       host_veh_coord, base_to_global_pos_sensor_,
-      earth_to_map_, odom_to_base_link_);
-
+      earth_to_map_, get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp));
+//TODO do we need to sync the heading too? Currently pinpoint's heading and nav_sat_fix are always synched. But this maynot always be the case
     // Publish newly calculated transforms
     geometry_msgs::TransformStamped map_to_odom_msg 
       = tf2::toMsg(map_to_odom_,  host_veh_loc->header.stamp, map_frame_, odom_frame_);
@@ -80,6 +116,11 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     tf_stamped_msgs.push_back(map_to_odom_msg);
 
     // Publish transform
+    // TODO Should we add our calculated transforms ourself here?
+
+    for (int i =0; i < tf_stamped_msgs.size(); i++) {
+      tf2_buffer_->setTransform(tf_stamped_msgs.at(i), "/saxton_cav/sensor_fusion");
+    }
     tf2_broadcaster_->sendTransform(tf_stamped_msgs);
 }
 
@@ -119,7 +160,7 @@ void TransformMaintainer::nav_sat_fix_update_cb()
     return T_m_B * T_o_b.inverse();
   }
 
-void TransformMaintainer::odometry_update_cb() 
+void TransformMaintainer::odometry_update_cb(const nav_msgs::OdometryConstPtr odometry) 
 {
       // Check if base_link->position_sensor tf is available. If not look it up
     if (no_base_to_local_pos_sensor_) {
@@ -134,13 +175,13 @@ void TransformMaintainer::odometry_update_cb()
 
       no_base_to_local_pos_sensor_ = false;
     }
-
-    if (odom_map_->empty()) {
-      std::string msg = "TransformMaintainer odometry_update_cb called before odometry message received";
-      ROS_WARN_STREAM("TRANSFORM | " << msg);
-      return;
-    }
-    nav_msgs::OdometryConstPtr odometry = odom_map_->begin()->second;
+  // TODO
+    // if (odom_map_->empty()) {
+    //   std::string msg = "TransformMaintainer odometry_update_cb called before odometry message received";
+    //   ROS_WARN_STREAM("TRANSFORM | " << msg);
+    //   return;
+    // }
+    //nav_msgs::OdometryConstPtr odometry = odom_map_->begin()->second;
     std::string parent_frame_id = odometry->header.frame_id;
     std::string child_frame_id = odometry->child_frame_id;
     // If the odometry is already in the base_link frame
@@ -149,6 +190,8 @@ void TransformMaintainer::odometry_update_cb()
       // Publish updated transform
       geometry_msgs::TransformStamped odom_to_base_link_msg 
         = tf2::toMsg(odom_to_base_link_,  odometry->header.stamp, odom_frame_, base_link_frame_);
+         // TODO Should we add our calculated transforms ourself here?
+         tf2_buffer_->setTransform(odom_to_base_link_msg, "/saxton_cav/sensor_fusion");
       tf2_broadcaster_->sendTransform(odom_to_base_link_msg);
 
     } else if (parent_frame_id == odom_frame_ && child_frame_id == local_pos_sensor_frame_) {
@@ -169,6 +212,8 @@ void TransformMaintainer::odometry_update_cb()
       // Publish updated transform
       geometry_msgs::TransformStamped odom_to_base_link_msg 
         = tf2::toMsg(odom_to_base_link_,  odometry->header.stamp, odom_frame_, base_link_frame_);
+         // TODO Should we add our calculated transforms ourself here?
+      tf2_buffer_->setTransform(odom_to_base_link_msg, "/saxton_cav/sensor_fusion");
       tf2_broadcaster_->sendTransform(odom_to_base_link_msg);
 
     } else {

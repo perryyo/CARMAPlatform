@@ -207,7 +207,6 @@ int SensorFusionApplication::run() {
 
     // Setup transform maintainer
     tf2_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
-    
     tf_maintainer_.init(&tf2_buffer_, &(*tf2_broadcaster_),
      &odom_map_, &navsatfix_map_, &heading_map_,
      earth_frame_name_, ned_frame_name_, inertial_frame_name_, 
@@ -249,7 +248,10 @@ int SensorFusionApplication::run() {
         dyn_cfg_server_->setCallback(f);
     }
 
-    ros::Subscriber bsm_sub = nh_->subscribe<cav_msgs::BSM>("bsm", 1000, &SensorFusionApplication::bsm_cb, this);
+    // TODO we need a queue to process bsm from multiple vehicles but this could cause delays in processing
+    // With 4 other cars we could be getting 40 messages a second with a maximum processing rate of 20 bsms a second
+    ros::Subscriber bsm_sub = nh_->subscribe<cav_msgs::BSM>("bsm", 1000, &SensorFusionApplication::bsm_map_cb, this);
+    
 
     if(use_interface_mgr_)
     {
@@ -332,11 +334,26 @@ int SensorFusionApplication::run() {
     objects_pub_    = pnh.advertise<cav_msgs::ExternalObjectList>("tracked_objects",100);
     vehicles_pub_   = pnh.advertise<cav_msgs::ConnectedVehicleList>("tracked_vehicles",100);
 
-    ros::Rate r(20);
+    ros::Rate r(2); //TODO we might want to increase this rate
     while(ros::ok())
     {
-        ros::spinOnce();
+        // Process callbacks
+        ROS_WARN("SPIN");
+        ros::spinOnce(); // spinOnce tries to process all the elements in every subscriber queue. 
+        ROS_WARN("DONE SPIN");
 
+        // TODO By processing the callbacks first the bsm's are converted to odom before the tf publication. 
+        // Can we get them processed afterword just like objects
+
+        // Updates transforms with new data.
+        // If we got a new nav sat fix but not a new heading should we wait for the new heading?
+        // TODO only update the transforms if new data is provided
+        if (!odom_map_.empty())
+            tf_maintainer_.odometry_update_cb(odom_map_.begin()->second); // Always update odometry first
+        if (!navsatfix_map_.empty() && !heading_map_.empty())
+            tf_maintainer_.nav_sat_fix_update_cb(navsatfix_map_.begin()->second, heading_map_.begin()->second);
+
+        // After updating transforms we should process the objects
         while(!objects_cb_q_.empty())
         {
             objects_cb(objects_cb_q_.front().second,objects_cb_q_.front().first);
@@ -473,11 +490,11 @@ void SensorFusionApplication::publish_updates() {
     if(!velocity_map_.empty())
         velocity_pub_.publish(velocity_map_.begin()->second);
 
+    // TODO the connected vehicle list should be removed as it is not used
     cav_msgs::ConnectedVehicleList msg;
     std_msgs::Header header;
     header.frame_id = body_frame_name_;
     header.stamp = ros::Time::now();
-
     vehicles_pub_.publish(msg);
 
     if(tracker_->process() > 0 && !tracker_->tracked_sensor->objects.empty())
@@ -572,6 +589,45 @@ void SensorFusionApplication::objects_cb(const cav_msgs::ExternalObjectListConst
     tracker_->addObjects(transformed_list.begin(),transformed_list.end(),hash,transformStamped.header.stamp.toBoost());
 }
 
+// inline std::string bsmIdFromBuffer(uint8_t[] id_buffer) {
+
+//     std::stringstream stream;
+//     for (int i = 0; i < 4; i++) {
+//         stream << std::setfill ('0') << std::setw(2) << std::hex << i;
+//     }
+
+//     return stream.str();
+
+// }
+
+void SensorFusionApplication::bsm_map_cb(const cav_msgs::BSMConstPtr &msg) {
+
+    ROS_WARN("PROCESSING BSM");
+    // std::string bsm_id = bsmIdFromBuffer(msg->core_data.id);
+    // bsm_id_map_[bsm_id] = msg;
+}
+
+// template< typename T >
+// std::string int_to_hex( T i )
+// {
+//   std::stringstream stream;
+//   stream << std::setfill ('0') << std::setw(sizeof(T)*2) 
+//          << std::hex << i;
+//   return stream.str();
+// }
+
+// // Convert bsm id array to string
+// char[] hexChars = new char[8];
+// for(int i = 0; i < 8; i++) {
+//     int firstFourBits = (0xF0 & id_buffer[i]) >> 4;
+//     int lastFourBits = 0xF & id_buffer[i];
+//     hexChars[i * 2] = int_to_hex(firstFourBits);
+//     hexChars[i * 2 + 1] = int_to_hex(lastFourBits);
+// }
+// return new String(hexChars);
+//}
+
+
 void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     ROS_INFO_STREAM_NAMED("bsm_logger","Received bsm message: " << msg);
     if(heading_map_.empty() || navsatfix_map_.empty())
@@ -592,12 +648,15 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
         // TODO the time lookup might drop the bsm (Is that really an issue when they come in at 10Hz)
         // It is very much an issue. Confirmed during testing that the time lookup fails to get the right object alot
         // Current workaround is to have roadway subscribe to pinpoint. This prevents the race condition with sensor fusion
-        odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, msg->header.stamp);
-        ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, msg->header.stamp);
-        ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp);
+        // odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, msg->header.stamp);
+        // ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, msg->header.stamp);
+        // ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp);
+        odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, ros::Time(0));
+        ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, ros::Time(0));
+        ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", ros::Time(0));
         tf2::fromMsg(ned_earth_msg_tf, ecef_in_ned_tf);
     } catch (tf2::TransformException&ex) {
-        ROS_WARN_STREAM(ex.what());
+        ROS_WARN_STREAM("BSM | " << "Sensor fusion transform lookup exception: " << ex.what());
         return;
     }
     ROS_INFO_STREAM_NAMED("bsm_logger","odom_in_ned_tf" << ned_odom_tf);
@@ -730,13 +789,11 @@ void SensorFusionApplication::heading_cb(const ros::MessageEvent<cav_msgs::Headi
 void SensorFusionApplication::navsatfix_cb(const ros::MessageEvent<sensor_msgs::NavSatFix> &event) {
     std::string name = event.getPublisherName();
     navsatfix_map_[name] = event.getMessage();
-    tf_maintainer_.nav_sat_fix_update_cb(); // TODO is this the best place for this
 }
 
 void SensorFusionApplication::odom_cb(const ros::MessageEvent<nav_msgs::Odometry> &event) {
     std::string name = event.getPublisherName();
     odom_map_[name] = event.getMessage();
-    tf_maintainer_.odometry_update_cb(); // TODO is this the best place for this
 }
 
 void SensorFusionApplication::dyn_recfg_cb(sensor_fusion::SensorFusionConfig &cfg, uint32_t level)

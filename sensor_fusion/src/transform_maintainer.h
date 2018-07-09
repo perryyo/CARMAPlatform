@@ -51,6 +51,7 @@
 #include <unordered_map>
 #include <memory>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <cav_msgs/HeadingStamped.h>
 #include "wgs84_utils.h"
 
 namespace tf2
@@ -102,9 +103,9 @@ public:
     }
     //void heading_update_cb();
 
-    void nav_sat_fix_update_cb();
+    void nav_sat_fix_update_cb(const sensor_msgs::NavSatFixConstPtr host_veh_loc, const cav_msgs::HeadingStampedConstPtr heading_msg);
 
-    void odometry_update_cb();
+    void odometry_update_cb(const nav_msgs::OdometryConstPtr odometry);
 
     tf2::Transform get_transform(std::string parent_frame, std::string child_frame, ros::Time stamp);
 
@@ -123,12 +124,6 @@ private:
 
     tf2_ros::Buffer* tf2_buffer_;
     tf2_ros::TransformBroadcaster* tf2_broadcaster_;
-
-      // Host vehicle state variables
-    bool heading_received_ = false;
-    bool nav_sat_fix_received_ = false;
-    wgs84_utils::wgs84_coordinate host_veh_loc_;
-    double host_veh_heading_;
 
     std::unordered_map<std::string, nav_msgs::OdometryConstPtr>* odom_map_;
     std::unordered_map<std::string, sensor_msgs::NavSatFixConstPtr>* navsatfix_map_;
@@ -153,5 +148,9 @@ private:
     bool no_earth_to_map_ = true;
     bool no_base_to_local_pos_sensor_ = true;
     bool no_base_to_global_pos_sensor_ = true;
+
+    ros::Time last_nav_sat_stamp;
+    ros::Time last_odom_stamp;
+    ros::Time last_heading_stamp;
 };
 

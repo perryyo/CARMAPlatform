@@ -66,6 +66,8 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+//#include <optional>
+#include <array>
 
 /**
  * @brief A ROS node that monitors multiple sources to produce a filtered version
@@ -205,7 +207,9 @@ private:
 
     std::deque<std::pair<std::string, cav_msgs::ExternalObjectListConstPtr>> objects_cb_q_;
     void objects_cb(const cav_msgs::ExternalObjectListConstPtr &objList,const std::string&);
-
+    
+    //std::unordered_map<std::string, std::optional<cav_msgs::BSM>> bsm_id_map_;
+    void bsm_map_cb(const cav_msgs::BSMConstPtr& msg);
     void bsm_cb(const cav_msgs::BSMConstPtr& msg);
 };
 
