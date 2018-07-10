@@ -136,6 +136,7 @@ public class EnvironmentWorker {
     }
     List<cav_msgs.ExternalObject> objects = externalObjects.getObjects();
     List<RoadwayObstacle> roadwayObstacles = new LinkedList<>();
+    // TODO we may want the transform to be done per object
     Transform earthToOdom = roadwayMgr.getTransform(earthFrame, odomFrame, externalObjects.getHeader().getStamp());
     if (earthToOdom == null) {
       log.warn("Roadway could not process object message as earth to odom transform was null");

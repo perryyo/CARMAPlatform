@@ -47,10 +47,10 @@ void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixCons
     }
 
     last_nav_sat_stamp = host_veh_loc->header.stamp;
-    ROS_WARN_STREAM("TRANSFORM | New nav sat received prev: " << last_nav_sat_stamp);
+    ROS_WARN_STREAM("TRANSFORM | New nav sat received: " << last_nav_sat_stamp);
 
     last_heading_stamp = heading_msg->header.stamp;
-    ROS_WARN_STREAM("TRANSFORM | New heading received prev: " << last_heading_stamp);
+    ROS_WARN_STREAM("TRANSFORM | New heading received: " << last_heading_stamp);
 
     std::string frame_id = host_veh_loc->header.frame_id;
     if (frame_id != global_pos_sensor_frame_) {
@@ -63,7 +63,7 @@ void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixCons
     if (no_base_to_global_pos_sensor_) {
       // This transform should be static. No need to look up more than once
       try {
-        base_to_global_pos_sensor_ = get_transform(base_link_frame_, global_pos_sensor_frame_, ros::Time(0));
+        base_to_global_pos_sensor_ = get_transform(base_link_frame_, global_pos_sensor_frame_, ros::Time(0), true);
       } catch (tf2::TransformException e) {
         std::string msg = "TransformMaintainer nav_sat_fix_update_cb failed to get transform for global position sensor in base link";
         ROS_WARN_STREAM("TRANSFORM | " << msg);
@@ -97,7 +97,7 @@ void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixCons
     // Get odom->base_link transform which matching timestamp
     tf2::Transform odom_to_base_link;
     try {
-      odom_to_base_link =  get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp);
+      odom_to_base_link =  get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp, false);
     } catch (tf2::TransformException e) {
       std::string msg = "TransformMaintainer nav_sat_fix_update_cb failed to get transform for odom to base_link";
       ROS_WARN_STREAM("TRANSFORM | " << msg);
@@ -107,7 +107,7 @@ void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixCons
     // Calculate updated tf
     map_to_odom_ = calculate_map_to_odom_tf(
       host_veh_coord, base_to_global_pos_sensor_,
-      earth_to_map_, get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp));
+      earth_to_map_, odom_to_base_link);
 //TODO do we need to sync the heading too? Currently pinpoint's heading and nav_sat_fix are always synched. But this maynot always be the case
     // Publish newly calculated transforms
     geometry_msgs::TransformStamped map_to_odom_msg 
@@ -166,7 +166,7 @@ void TransformMaintainer::odometry_update_cb(const nav_msgs::OdometryConstPtr od
     if (no_base_to_local_pos_sensor_) {
       // This transform should be static. No need to look up more than once
       try {
-        base_to_local_pos_sensor_ = get_transform(base_link_frame_, local_pos_sensor_frame_, ros::Time(0));
+        base_to_local_pos_sensor_ = get_transform(base_link_frame_, local_pos_sensor_frame_, ros::Time(0), true);
       } catch (tf2::TransformException e) {
         std::string msg = "TransformMaintainer odometry_update_cb failed to get transform for local position sensor in base link";
         ROS_WARN_STREAM("TRANSFORM | " << msg);
@@ -184,6 +184,7 @@ void TransformMaintainer::odometry_update_cb(const nav_msgs::OdometryConstPtr od
     //nav_msgs::OdometryConstPtr odometry = odom_map_->begin()->second;
     std::string parent_frame_id = odometry->header.frame_id;
     std::string child_frame_id = odometry->child_frame_id;
+    ROS_WARN_STREAM("Odometry Stamp: " << odometry->header.stamp);// TODO remove
     // If the odometry is already in the base_link frame
     if (parent_frame_id == odom_frame_ && child_frame_id == base_link_frame_) {
       tf2::fromMsg(odometry->pose.pose, odom_to_base_link_);
@@ -225,15 +226,19 @@ void TransformMaintainer::odometry_update_cb(const nav_msgs::OdometryConstPtr od
 }
 
 // Helper function
-tf2::Transform TransformMaintainer::get_transform(std::string parent_frame, std::string child_frame, ros::Time stamp) {
+tf2::Stamped<tf2::Transform> TransformMaintainer::get_transform(
+  std::string parent_frame, std::string child_frame, ros::Time stamp,
+  bool can_use_most_recent_tf) 
+{
   geometry_msgs::TransformStamped transform_stamped;
+
   if(tf2_buffer_->canTransform(parent_frame, child_frame, stamp))
   {
     transform_stamped = tf2_buffer_->lookupTransform(parent_frame, child_frame, stamp);
   }
-  else if(tf2_buffer_->canTransform(parent_frame, child_frame, ros::Time(0)))
+  else if(tf2_buffer_->canTransform(parent_frame, child_frame, ros::Time(0)) && can_use_most_recent_tf)
   {
-    ROS_DEBUG_STREAM("Using latest transform available");
+    ROS_WARN_STREAM("Using latest transform available");
     transform_stamped = tf2_buffer_->lookupTransform(parent_frame, child_frame, ros::Time(0));
   }
   else
@@ -245,8 +250,8 @@ tf2::Transform TransformMaintainer::get_transform(std::string parent_frame, std:
   
   tf2::Transform result;
   tf2::fromMsg(transform_stamped.transform, result);
-
-  return result;
+  tf2::Stamped<tf2::Transform> stamped_result(result, transform_stamped.header.stamp, transform_stamped.header.frame_id);
+  return stamped_result;
 }
 
 

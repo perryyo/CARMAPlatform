@@ -250,7 +250,7 @@ int SensorFusionApplication::run() {
 
     // TODO we need a queue to process bsm from multiple vehicles but this could cause delays in processing
     // With 4 other cars we could be getting 40 messages a second with a maximum processing rate of 20 bsms a second
-    ros::Subscriber bsm_sub = nh_->subscribe<cav_msgs::BSM>("bsm", 1000, &SensorFusionApplication::bsm_map_cb, this);
+    ros::Subscriber bsm_sub = nh_->subscribe<cav_msgs::BSM>("bsm", 50, &SensorFusionApplication::bsm_map_cb, this);
     
 
     if(use_interface_mgr_)
@@ -334,13 +334,11 @@ int SensorFusionApplication::run() {
     objects_pub_    = pnh.advertise<cav_msgs::ExternalObjectList>("tracked_objects",100);
     vehicles_pub_   = pnh.advertise<cav_msgs::ConnectedVehicleList>("tracked_vehicles",100);
 
-    ros::Rate r(2); //TODO we might want to increase this rate
+    ros::Rate r(20); //TODO we might want to increase this rate
     while(ros::ok())
     {
         // Process callbacks
-        ROS_WARN("SPIN");
-        ros::spinOnce(); // spinOnce tries to process all the elements in every subscriber queue. 
-        ROS_WARN("DONE SPIN");
+        ros::spinOnce(); // spinOnce tries to process all the elements in every subscriber queue at the moment it is called. 
 
         // TODO By processing the callbacks first the bsm's are converted to odom before the tf publication. 
         // Can we get them processed afterword just like objects
@@ -353,7 +351,18 @@ int SensorFusionApplication::run() {
         if (!navsatfix_map_.empty() && !heading_map_.empty())
             tf_maintainer_.nav_sat_fix_update_cb(navsatfix_map_.begin()->second, heading_map_.begin()->second);
 
-        // After updating transforms we should process the objects
+        // After updating transforms we should process bsm objects
+        ROS_INFO_STREAM("BSM Id map of size: " << bsm_id_map_.size());
+        for (std::pair<std::string, cav_msgs::BSMConstPtr> el : bsm_id_map_)
+        {
+            process_bsm(el.second);
+        }
+
+        // Clear the bsm map. It will be rebuilt on the next call to spinOnce.
+        bsm_id_map_.clear();
+
+
+        // After updating transforms we should process the sensor objects
         while(!objects_cb_q_.empty())
         {
             objects_cb(objects_cb_q_.front().second,objects_cb_q_.front().first);
@@ -366,6 +375,16 @@ int SensorFusionApplication::run() {
 
     return 0;
 }
+
+// TODO delete from unordered map
+//std::unordered_map<...> mymap;
+// std::vector<decltype(mymap)::key_type> vec;
+// for (auto&& i : mymap)
+//     if (/*compare i*/)
+//         vec.emplace_back(i.first);
+// for (auto&& key : vec)
+//     mymap.erase(key);
+
 
 void SensorFusionApplication::update_subscribed_services() {
     ROS_DEBUG_STREAM("Updating subscribed services");
@@ -500,11 +519,21 @@ void SensorFusionApplication::publish_updates() {
     if(tracker_->process() > 0 && !tracker_->tracked_sensor->objects.empty())
     {
         cav_msgs::ExternalObjectList list;
-        list.header.stamp = ros::Time::fromBoost(tracker_->tracked_sensor->time_stamp);
+        //list.header.stamp = ros::Time::fromBoost(tracker_->tracked_sensor->time_stamp);// TODO
+        list.header.stamp = last_bsm_stamp_;
+        ROS_WARN_STREAM("List Stamp: " << last_bsm_stamp_);
         list.header.frame_id = inertial_frame_name_;
         for (auto& it : tracker_->tracked_sensor->objects)
         {
             cav_msgs::ExternalObject obj = toExternalObject(it);
+
+
+            // if (obj.presence_vector & cav_msgs::ExternalObject::BSM_ID_PRESENCE_VECTOR) {
+            //     ROS_INFO_STREAM("Set BSM Object header stamp");
+            //     obj.header.stamp = 
+            // } else {
+            //     obj.header = list.header;
+            // }
             obj.header = list.header;
             list.objects.push_back(obj);
         }
@@ -589,22 +618,28 @@ void SensorFusionApplication::objects_cb(const cav_msgs::ExternalObjectListConst
     tracker_->addObjects(transformed_list.begin(),transformed_list.end(),hash,transformStamped.header.stamp.toBoost());
 }
 
-// inline std::string bsmIdFromBuffer(uint8_t[] id_buffer) {
+inline std::string bsmIdFromBuffer(std::vector<uint8_t> id_buffer) {
 
-//     std::stringstream stream;
-//     for (int i = 0; i < 4; i++) {
-//         stream << std::setfill ('0') << std::setw(2) << std::hex << i;
-//     }
+    if (id_buffer.size() != 4) {
+        // TODO throw exception
+        return "";
+    }
 
-//     return stream.str();
+    std::stringstream stream;
+    for (int i = 0; i < id_buffer.size(); i++) {
+        stream << std::setfill ('0') << std::setw(2) << std::hex << id_buffer[i];
+    }
 
-// }
+    return stream.str();
+
+}
 
 void SensorFusionApplication::bsm_map_cb(const cav_msgs::BSMConstPtr &msg) {
 
-    ROS_WARN("PROCESSING BSM");
-    // std::string bsm_id = bsmIdFromBuffer(msg->core_data.id);
-    // bsm_id_map_[bsm_id] = msg;
+    ROS_INFO_NAMED("bsm_logger","PROCESSING BSM");
+    std::string bsm_id = bsmIdFromBuffer(msg->core_data.id);
+    ROS_INFO_STREAM_NAMED("bsm_logger","BSM_ID: " << bsm_id);
+    bsm_id_map_[bsm_id] = msg;
 }
 
 // template< typename T >
@@ -628,7 +663,7 @@ void SensorFusionApplication::bsm_map_cb(const cav_msgs::BSMConstPtr &msg) {
 //}
 
 
-void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
+void SensorFusionApplication::process_bsm(const cav_msgs::BSMConstPtr &msg) {
     ROS_INFO_STREAM_NAMED("bsm_logger","Received bsm message: " << msg);
     if(heading_map_.empty() || navsatfix_map_.empty())
     {
@@ -637,30 +672,31 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     }
     auto hash = std::hash<std::string>();
     size_t src_id = hash("bsm_objects");
-    cav_msgs::ExternalObject obj;
-    obj.header.frame_id = inertial_frame_name_;
-    obj.header.stamp = msg->header.stamp;
-    obj.presence_vector = 0;
 
-    geometry_msgs::TransformStamped odom_tf, ned_odom_tf, ned_earth_msg_tf;
-    tf2::Stamped<tf2::Transform> ecef_in_ned_tf;
+    tf2::Stamped<tf2::Transform> ecef_in_ned_tf, odom_in_map_tf;
     try {
         // TODO the time lookup might drop the bsm (Is that really an issue when they come in at 10Hz)
         // It is very much an issue. Confirmed during testing that the time lookup fails to get the right object alot
         // Current workaround is to have roadway subscribe to pinpoint. This prevents the race condition with sensor fusion
-        // odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, msg->header.stamp);
-        // ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, msg->header.stamp);
-        // ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", msg->header.stamp);
-        odom_tf = tf2_buffer_.lookupTransform(inertial_frame_name_, body_frame_name_, ros::Time(0));
-        ned_odom_tf = tf2_buffer_.lookupTransform(ned_frame_name_, inertial_frame_name_, ros::Time(0));
-        ned_earth_msg_tf = tf2_buffer_.lookupTransform(ned_frame_name_, "earth", ros::Time(0));
-        tf2::fromMsg(ned_earth_msg_tf, ecef_in_ned_tf);
+
+        odom_in_map_tf = tf_maintainer_.get_transform(ned_frame_name_, inertial_frame_name_, msg->header.stamp, true);
+        ecef_in_ned_tf = tf_maintainer_.get_transform(ned_frame_name_, "earth", msg->header.stamp, true);
+
     } catch (tf2::TransformException&ex) {
-        ROS_WARN_STREAM("BSM | " << "Sensor fusion transform lookup exception: " << ex.what());
+        ROS_WARN_STREAM_NAMED("bsm_logger", "Sensor fusion transform lookup exception: " << ex.what());
         return;
     }
-    ROS_INFO_STREAM_NAMED("bsm_logger","odom_in_ned_tf" << ned_odom_tf);
-    ROS_INFO_STREAM_NAMED("bsm_logger","earth_in_ned_tf" << ned_earth_msg_tf);
+
+    cav_msgs::ExternalObject obj;
+    obj.header.frame_id = inertial_frame_name_;
+    obj.header.stamp = odom_in_map_tf.stamp_; // Use the timestamp of the transform for this bsm to ensure it can be converted
+    obj.presence_vector = 0;
+
+    // TODO remove
+    last_bsm_stamp_ = obj.header.stamp;
+    ROS_WARN_STREAM("BSM Stamp: " << last_bsm_stamp_);
+
+    //ROS_INFO_STREAM_NAMED("bsm_logger","earth_in_ned_tf" << ned_earth_msg_tf);
     obj.presence_vector |= cav_msgs::ExternalObject::ID_PRESENCE_VECTOR;
     obj.id = (msg->core_data.id[0] << 24) | (msg->core_data.id[1] << 16) | (msg->core_data.id[2] << 8) | (msg->core_data.id[3]);
 
@@ -674,28 +710,28 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     bsm_coord_rad.lat       = msg->core_data.latitude * wgs84_utils::DEG2RAD;
     bsm_coord_rad.lon       = msg->core_data.longitude * wgs84_utils::DEG2RAD;
 
-    wgs84_utils::wgs84_coordinate ref_wgs84;
-    ref_wgs84.heading   = heading_map_.begin()->second->heading;
-    ref_wgs84.elevation = navsatfix_map_.begin()->second->altitude;
-    ref_wgs84.lat       = navsatfix_map_.begin()->second->latitude;
-    ref_wgs84.lon       = navsatfix_map_.begin()->second->longitude;
+    // wgs84_utils::wgs84_coordinate ref_wgs84;
+    // ref_wgs84.heading   = heading_map_.begin()->second->heading;
+    // ref_wgs84.elevation = navsatfix_map_.begin()->second->altitude;
+    // ref_wgs84.lat       = navsatfix_map_.begin()->second->latitude;
+    // ref_wgs84.lon       = navsatfix_map_.begin()->second->longitude;
 
-    Eigen::Vector3d odom_pose;
-    odom_pose[0] = odom_tf.transform.translation.x;
-    odom_pose[1] = odom_tf.transform.translation.y;
-    odom_pose[2] = odom_tf.transform.translation.z;
+    // Eigen::Vector3d odom_pose;
+    // odom_pose[0] = odom_tf.transform.translation.x;
+    // odom_pose[1] = odom_tf.transform.translation.y;
+    // odom_pose[2] = odom_tf.transform.translation.z;
 
-    Eigen::Quaterniond odom_rot;
-    odom_rot.x() = odom_tf.transform.rotation.x;
-    odom_rot.y() = odom_tf.transform.rotation.y;
-    odom_rot.z() = odom_tf.transform.rotation.z;
-    odom_rot.w() = odom_tf.transform.rotation.w;
+    // Eigen::Quaterniond odom_rot;
+    // odom_rot.x() = odom_tf.transform.rotation.x;
+    // odom_rot.y() = odom_tf.transform.rotation.y;
+    // odom_rot.z() = odom_tf.transform.rotation.z;
+    // odom_rot.w() = odom_tf.transform.rotation.w;
 
-    Eigen::Transform<double, 3, Eigen::Affine> ned_odom_tf_eig;
-    ned_odom_tf_eig = Eigen::Translation3d(ned_odom_tf.transform.translation.x, ned_odom_tf.transform.translation.y,
-                                           ned_odom_tf.transform.translation.z)
-                      * Eigen::Quaterniond(ned_odom_tf.transform.rotation.w, ned_odom_tf.transform.rotation.x, ned_odom_tf.transform.rotation.y,
-                                           ned_odom_tf.transform.rotation.z);
+    // Eigen::Transform<double, 3, Eigen::Affine> ned_odom_tf_eig;
+    // ned_odom_tf_eig = Eigen::Translation3d(ned_odom_tf.transform.translation.x, ned_odom_tf.transform.translation.y,
+    //                                        ned_odom_tf.transform.translation.z)
+    //                   * Eigen::Quaterniond(ned_odom_tf.transform.rotation.w, ned_odom_tf.transform.rotation.x, ned_odom_tf.transform.rotation.y,
+    //                                        ned_odom_tf.transform.rotation.z);
 
    // Eigen::Quaterniond out_rot;
    // Eigen::Vector3d out_pose;
@@ -712,11 +748,10 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     // BSM transform in map
     tf2::Transform bsm_in_map_tf(rot_in_ned, bsm_in_map_trans);
     
-    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_map: " << tf2::toMsg(bsm_in_map_tf));
-    tf2::Stamped<tf2::Transform> odom_in_map_tf;
-    tf2::fromMsg(ned_odom_tf, odom_in_map_tf);
+    //ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_map: " << tf2::toMsg(bsm_in_map_tf));
+
     tf2::Transform bsm_in_odom = odom_in_map_tf.inverse() * bsm_in_map_tf;
-    ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_odom: " << tf2::toMsg(bsm_in_odom));
+    //ROS_INFO_STREAM_NAMED("bsm_logger","bsm_in_odom: " << tf2::toMsg(bsm_in_odom));
     tf2::Vector3 bsm_trans = bsm_in_odom.getOrigin();
     tf2::Quaternion bsm_rot = bsm_in_odom.getRotation();
     
@@ -761,7 +796,7 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     obj.size.x = msg->core_data.size.vehicle_length;
     obj.size.y = msg->core_data.size.vehicle_width / 2;
     obj.size.z = 1.5;
-    ROS_INFO_STREAM_NAMED("bsm_logger","Converted bsm message: " << obj);
+    //ROS_INFO_STREAM_NAMED("bsm_logger","Converted bsm message: " << obj);
 
     std::vector<torc::TrackedObject> objects;
     objects.push_back(torc::toTrackedObject(obj));
@@ -772,7 +807,7 @@ void SensorFusionApplication::bsm_cb(const cav_msgs::BSMConstPtr &msg) {
     memcpy(back.src_data[src_id].get(),&serial_size,sizeof(uint32_t));
     ros::serialization::OStream stream(back.src_data[src_id].get()+sizeof(uint32_t),serial_size);
     ros::serialization::serialize(stream,obj);
-    tracker_->addObjects(objects.begin(),objects.end(),src_id,msg->header.stamp.toBoost());
+    tracker_->addObjects(objects.begin(),objects.end(),src_id,obj.header.stamp.toBoost());
 }
 
 void SensorFusionApplication::velocity_cb(const ros::MessageEvent<geometry_msgs::TwistStamped> &event) {

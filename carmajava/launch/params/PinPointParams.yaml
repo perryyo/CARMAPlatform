@@ -6,3 +6,6 @@ address: '192.168.88.29'
 
 # Integer: localization server port
 loc_port: 9501
+
+# Boolean: If set to true the pinpoint driver will publish the odom->base_link transform
+publish_tf: false

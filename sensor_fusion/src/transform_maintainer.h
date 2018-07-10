@@ -107,7 +107,9 @@ public:
 
     void odometry_update_cb(const nav_msgs::OdometryConstPtr odometry);
 
-    tf2::Transform get_transform(std::string parent_frame, std::string child_frame, ros::Time stamp);
+    tf2::Stamped<tf2::Transform> TransformMaintainer::get_transform(
+        std::string parent_frame, std::string child_frame, ros::Time stamp,
+        bool can_use_most_recent_tf);
 
     static tf2::Transform calculate_map_to_odom_tf(
         const wgs84_utils::wgs84_coordinate& host_veh_coord,

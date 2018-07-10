@@ -66,7 +66,6 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
-//#include <optional>
 #include <array>
 
 /**
@@ -116,6 +115,8 @@ private:
     bool use_interface_mgr_;
     std::string inertial_frame_name_, body_frame_name_, ned_frame_name_,
       earth_frame_name_, global_pos_sensor_frame_name_, local_pos_sensor_frame_name_;
+
+    ros::Time last_bsm_stamp_;// TODO remove
 
     /**
      * @brief This function is the bond call back for on_broken event    *
@@ -208,8 +209,8 @@ private:
     std::deque<std::pair<std::string, cav_msgs::ExternalObjectListConstPtr>> objects_cb_q_;
     void objects_cb(const cav_msgs::ExternalObjectListConstPtr &objList,const std::string&);
     
-    //std::unordered_map<std::string, std::optional<cav_msgs::BSM>> bsm_id_map_;
+    std::unordered_map<std::string, cav_msgs::BSMConstPtr> bsm_id_map_;
     void bsm_map_cb(const cav_msgs::BSMConstPtr& msg);
-    void bsm_cb(const cav_msgs::BSMConstPtr& msg);
+    void process_bsm(const cav_msgs::BSMConstPtr& msg);
 };
 
