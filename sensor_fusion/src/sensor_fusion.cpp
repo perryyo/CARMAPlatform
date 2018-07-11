@@ -516,13 +516,14 @@ void SensorFusionApplication::publish_updates() {
     header.stamp = ros::Time::now();
     vehicles_pub_.publish(msg);
 
-    if(tracker_->process() > 0 && !tracker_->tracked_sensor->objects.empty())
+    if(true || (tracker_->process() > 0 && !tracker_->tracked_sensor->objects.empty()))
     {
         cav_msgs::ExternalObjectList list;
         //list.header.stamp = ros::Time::fromBoost(tracker_->tracked_sensor->time_stamp);// TODO
-        list.header.stamp = last_bsm_stamp_;
-        ROS_WARN_STREAM("List Stamp: " << last_bsm_stamp_);
+        list.header.stamp = bsm_obj_.header.stamp;
+        ROS_WARN_STREAM("List Stamp: " << list.header.stamp);
         list.header.frame_id = inertial_frame_name_;
+        list.objects.push_back(bsm_obj_);
         for (auto& it : tracker_->tracked_sensor->objects)
         {
             cav_msgs::ExternalObject obj = toExternalObject(it);
@@ -675,9 +676,6 @@ void SensorFusionApplication::process_bsm(const cav_msgs::BSMConstPtr &msg) {
 
     tf2::Stamped<tf2::Transform> ecef_in_ned_tf, odom_in_map_tf;
     try {
-        // TODO the time lookup might drop the bsm (Is that really an issue when they come in at 10Hz)
-        // It is very much an issue. Confirmed during testing that the time lookup fails to get the right object alot
-        // Current workaround is to have roadway subscribe to pinpoint. This prevents the race condition with sensor fusion
 
         odom_in_map_tf = tf_maintainer_.get_transform(ned_frame_name_, inertial_frame_name_, msg->header.stamp, true);
         ecef_in_ned_tf = tf_maintainer_.get_transform(ned_frame_name_, "earth", msg->header.stamp, true);
@@ -793,21 +791,24 @@ void SensorFusionApplication::process_bsm(const cav_msgs::BSMConstPtr &msg) {
     obj.confidence = 1.0;
 
     obj.presence_vector |= cav_msgs::ExternalObject::SIZE_PRESENCE_VECTOR;
-    obj.size.x = msg->core_data.size.vehicle_length;
+    // TODO double check these size values
+    obj.size.x = msg->core_data.size.vehicle_length / 2;
     obj.size.y = msg->core_data.size.vehicle_width / 2;
-    obj.size.z = 1.5;
+    obj.size.z = 1.5; // TODO probably worth picking a picking a big z value
     //ROS_INFO_STREAM_NAMED("bsm_logger","Converted bsm message: " << obj);
 
-    std::vector<torc::TrackedObject> objects;
-    objects.push_back(torc::toTrackedObject(obj));
-    torc::TrackedObject& back = objects.back();
-    uint32_t serial_size = ros::serialization::serializationLength(obj);
-    boost::shared_array<uint8_t> buffer(new uint8_t[serial_size+sizeof(uint32_t)]);
-    back.src_data[src_id] = buffer;
-    memcpy(back.src_data[src_id].get(),&serial_size,sizeof(uint32_t));
-    ros::serialization::OStream stream(back.src_data[src_id].get()+sizeof(uint32_t),serial_size);
-    ros::serialization::serialize(stream,obj);
-    tracker_->addObjects(objects.begin(),objects.end(),src_id,obj.header.stamp.toBoost());
+    // TODO uncomment this is where fusion occurs
+    // std::vector<torc::TrackedObject> objects;
+    // objects.push_back(torc::toTrackedObject(obj));
+    // torc::TrackedObject& back = objects.back();
+    // uint32_t serial_size = ros::serialization::serializationLength(obj);
+    // boost::shared_array<uint8_t> buffer(new uint8_t[serial_size+sizeof(uint32_t)]);
+    // back.src_data[src_id] = buffer;
+    // memcpy(back.src_data[src_id].get(),&serial_size,sizeof(uint32_t));
+    // ros::serialization::OStream stream(back.src_data[src_id].get()+sizeof(uint32_t),serial_size);
+    // ros::serialization::serialize(stream,obj);
+    // tracker_->addObjects(objects.begin(),objects.end(),src_id,obj.header.stamp.toBoost());
+    bsm_obj_ = obj;
 }
 
 void SensorFusionApplication::velocity_cb(const ros::MessageEvent<geometry_msgs::TwistStamped> &event) {

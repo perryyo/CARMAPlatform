@@ -24,6 +24,9 @@ def external_objects_cb(obj):
         marker.action = marker.ADD
         marker.pose = obj.pose.pose
         marker.scale = obj.size
+        marker.scale.x = obj.size.x * 2.0
+        marker.scale.y = obj.size.y * 2.0
+        marker.scale.z = obj.size.z * 2.0
         marker.frame_locked = True
         marker.lifetime = rospy.Duration.from_sec(1)
         # Color of blue

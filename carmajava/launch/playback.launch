@@ -40,8 +40,8 @@
 
   <!-- Load Robot Description Model-->
   <!-- TODO take out transforms when urdf is commited Vehicle Transforms -->
-  <param name="robot_description" textfile="$(arg URDF_FILE)"/>
-  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+  <!-- <param name="robot_description" textfile="$(arg URDF_FILE)"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/> -->
 
   <!-- RViz Node -->
   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find carma)/launch/rviz/playback.rviz"/>
@@ -50,5 +50,5 @@
   <node pkg="carma" type="topic_viz_node.py" name="topic_viz_node"/>
 
   <!-- Play Ros bag -->
-  <node name="player" pkg="rosbag" type="play" output="log" args="$(arg bag) --clock $(arg actual_topics)"/>
+  <node name="player" pkg="rosbag" type="play" output="screen" args="$(arg bag) --clock $(arg actual_topics)"/>
 </launch>

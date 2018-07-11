@@ -118,6 +118,8 @@ private:
 
     ros::Time last_bsm_stamp_;// TODO remove
 
+    cav_msgs::ExternalObject bsm_obj_;
+
     /**
      * @brief This function is the bond call back for on_broken event    *
      * @param node_name name of the node this callback is firing for

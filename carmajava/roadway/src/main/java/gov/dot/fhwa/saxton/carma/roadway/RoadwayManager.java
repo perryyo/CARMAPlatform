@@ -252,6 +252,7 @@ public class RoadwayManager extends SaxtonBaseNode implements IRoadwayManager{
             if (response.getErrorStatus() == GetTransformResponse.NO_ERROR
               || response.getErrorStatus() == GetTransformResponse.COULD_NOT_EXTRAPOLATE) {
 
+              log.warn("Transform stamp: " + response.getTransform().getHeader().getStamp());
               rh.setResult(Transform.fromTransformMessage(response.getTransform().getTransform()));
 
             } else {

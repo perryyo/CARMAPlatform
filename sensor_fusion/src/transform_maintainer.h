@@ -107,7 +107,7 @@ public:
 
     void odometry_update_cb(const nav_msgs::OdometryConstPtr odometry);
 
-    tf2::Stamped<tf2::Transform> TransformMaintainer::get_transform(
+    tf2::Stamped<tf2::Transform> get_transform(
         std::string parent_frame, std::string child_frame, ros::Time stamp,
         bool can_use_most_recent_tf);
 

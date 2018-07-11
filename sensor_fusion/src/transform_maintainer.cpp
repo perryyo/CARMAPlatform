@@ -94,10 +94,10 @@ void TransformMaintainer::nav_sat_fix_update_cb(const sensor_msgs::NavSatFixCons
     
     tf_stamped_msgs.push_back(earth_to_map_msg);
 
-    // Get odom->base_link transform which matching timestamp
+    // Get odom->base_link transform with matching timestamp
     tf2::Transform odom_to_base_link;
     try {
-      odom_to_base_link =  get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp, false);
+      odom_to_base_link =  get_transform(odom_frame_, base_link_frame_, host_veh_loc->header.stamp, true);
     } catch (tf2::TransformException e) {
       std::string msg = "TransformMaintainer nav_sat_fix_update_cb failed to get transform for odom to base_link";
       ROS_WARN_STREAM("TRANSFORM | " << msg);
