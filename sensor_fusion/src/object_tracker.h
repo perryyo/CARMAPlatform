@@ -247,7 +247,7 @@ private:
     }
 
     /**
-     * @brief Process sensor measurments
+     * @brief Process sensor measurements
      *
      * The algorithm is as follows:
      *
@@ -284,7 +284,8 @@ private:
         //Delete old tracks
         purgeExpiredTracks(tracked_objects);
 
-        std::vector<size_t> best_candidates(tracked_objects.size(), measured_objects.size());
+        // best_candidates vector has keys of the tracked_objects index and values of the measured_objects index
+        std::vector<size_t> best_candidates(tracked_objects.size(), measured_objects.size()); // Vector tracked_objects.size() large filled with the value equal to measured_objects.size() 
         Eigen::MatrixXd score_matrix = Eigen::MatrixXd::Zero(measured_objects.size(), tracked_objects.size());
 
         //Iterate through each measured object looking for the best candidate in sensor_tracks
@@ -349,7 +350,7 @@ private:
         //correct tracks
         for(int i = 0; i < best_candidates.size(); i++) {
             if (best_candidates[i] < measured_objects.size()) {
-                correct(tracked_objects[i], measured_objects[best_candidates[i]],delta_time);
+                correct(tracked_objects[i], measured_objects[best_candidates[i]],delta_time); 
             }
         }
 
@@ -591,7 +592,7 @@ public:
             std::for_each(tracked_sensor->objects.begin(),tracked_sensor->objects.end(),[](TrackedObject& obj){obj.tracked_score = 0.0;});
         }
 
-        processObjects(merged_measurement,*tracked_sensor);
+        processObjects(merged_measurement,*tracked_sensor); //TODO I'am not convinced that having a tracked_score of 0 prevents tracking.
         return size;
 
     }
