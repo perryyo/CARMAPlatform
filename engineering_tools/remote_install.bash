@@ -35,6 +35,7 @@
 # -w Copy Web: A Flag which will cause the website (ui) files to be copied
 # -s Copy Scripts: A flag which will cause the scripts in engineering_tools to be copied
 # -H Overwrite the HostVehicleParams file on the target pc
+# -t Add a tag to the end of the the app folder name which will prevent it from being overwritten if the same software version is deployed again
 
 
 usage() { echo "Usage: remote_install.bash -n <username> ";}
@@ -57,6 +58,7 @@ APP=false
 WEB=false;
 SCRIPTS=false;
 OVERWRITE_HOST_PARAMS=false;
+APP_TAG=""
 
 while getopts n:h:bHpruelv:mawst:c: option
 do
@@ -77,6 +79,7 @@ do
 		w) WEB=true;;
 		s) SCRIPTS=true;;
 		H) OVERWRITE_HOST_PARAMS=true;;
+		t) APP_TAG="_${OPTARG}";;
 		\?) echo "Unknown option: -$OPTARG" >&2; exit 1;;
 		:) echo "Missing option argument for -$OPTARG" >&2; exit 1;;
 		*) echo "Unimplemented option: -$OPTARG" >&2; exit 1;;
@@ -253,7 +256,7 @@ if [ ${EVERYTHING} == true ] || [ ${EXECUTABLES} == true ]; then
 	fi
 
 	# Determine target folder
-	TARGET="${APP_DIR}_${FULL_VERSION_ID}"
+	TARGET="${APP_DIR}_${FULL_VERSION_ID}${APP_TAG}"
 	EXAMPLE_FOLDER="${APP_DIR}_v0"
 
 	# SSH into the remote mechine and create a copy of the directory pointed to by the app symlink
@@ -279,34 +282,34 @@ fi
 if [ ${EVERYTHING} == true ] || [ ${PARAMS} == true ]; then
 	echo "Trying to copy params"
 	# Set up scripts
-	BACKUP_HOST_PARAMS="mv ${CARMA_DIR}/params/HostVehicleParams.yaml ${CARMA_DIR}/params/HostVehicleParamsTemp.yaml"
-	SET_HOST_PARAMS="rm ${CARMA_DIR}/params/HostVehicleParams.yaml; mv ${CARMA_DIR}/params/HostVehicleParamsTemp.yaml ${CARMA_DIR}/params/HostVehicleParams.yaml"
+	BACKUP_HOST_PARAMS="mv ${APP_DIR}/params/HostVehicleParams.yaml ${APP_DIR}/params/HostVehicleParamsTemp.yaml"
+	SET_HOST_PARAMS="rm ${APP_DIR}/params/HostVehicleParams.yaml; mv ${APP_DIR}/params/HostVehicleParamsTemp.yaml ${APP_DIR}/params/HostVehicleParams.yaml"
 	
 	if [ ${OVERWRITE_HOST_PARAMS} == false ]; then
 		# Backup host vehicle params
 		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -l ${USERNAME} ${HOST} "${BACKUP_HOST_PARAMS}"
 	fi
 	# Copy the entire folder to the remote machine
-	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${PARAMS_DIR}" ${USERNAME}@${HOST}:"${CARMA_DIR}"
+	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${PARAMS_DIR}" ${USERNAME}@${HOST}:"${APP_DIR}"
 	
 	if [ ${OVERWRITE_HOST_PARAMS} == false ]; then
 		# Reset to backup of host vehicle params
 		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -l ${USERNAME} ${HOST} "${SET_HOST_PARAMS}"
 	fi
 	# Update permissions script
-	PERMISSIONS_SCRIPT="${PERMISSIONS_SCRIPT} chgrp -R ${GROUP} ${CARMA_DIR}/params/*; chmod -R ${UG_PERMISSIONS} ${CARMA_DIR}/params/*; chmod -R ${O_PERMISSIONS} ${CARMA_DIR}/params/*;"
+	PERMISSIONS_SCRIPT="${PERMISSIONS_SCRIPT} chgrp -R ${GROUP} ${APP_DIR}/params/*; chmod -R ${UG_PERMISSIONS} ${APP_DIR}/params/*; chmod -R ${O_PERMISSIONS} ${APP_DIR}/params/*;"
 fi
 
 # If we want to copy routes
 if [ ${EVERYTHING} == true ] || [ ${ROUTES} == true ]; then
 	echo "Trying to copy routes..."
 	# Delete old files
-	SCRIPT="rm -r ${CARMA_DIR}/routes/*;"
+	SCRIPT="rm -r ${APP_DIR}/routes/*;"
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -l ${USERNAME} ${HOST} "${SCRIPT}"
 	# Copy the entire folder to the remote machine
-	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${ROUTES_DIR}" ${USERNAME}@${HOST}:"${CARMA_DIR}"
+	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${ROUTES_DIR}" ${USERNAME}@${HOST}:"${APP_DIR}"
 		# Update permissions script
-	PERMISSIONS_SCRIPT="${PERMISSIONS_SCRIPT} chgrp -R ${GROUP} ${CARMA_DIR}/routes/*; chmod -R ${UG_PERMISSIONS} ${CARMA_DIR}/routes/*; chmod -R ${O_PERMISSIONS} ${CARMA_DIR}/routes/*;"
+	PERMISSIONS_SCRIPT="${PERMISSIONS_SCRIPT} chgrp -R ${GROUP} ${APP_DIR}/routes/*; chmod -R ${UG_PERMISSIONS} ${APP_DIR}/routes/*; chmod -R ${O_PERMISSIONS} ${APP_DIR}/routes/*;"
 fi
 
 # If we want to copy launch file
