@@ -36,7 +36,9 @@ import gov.dot.fhwa.saxton.carma.guidance.plugins.PluginManagementService;
 import gov.dot.fhwa.saxton.carma.guidance.plugins.PluginServiceLocator;
 import gov.dot.fhwa.saxton.carma.guidance.pubsub.IPubSubService;
 import gov.dot.fhwa.saxton.carma.guidance.util.ILogger;
+import gov.dot.fhwa.saxton.carma.guidance.util.ITimeProvider;
 import gov.dot.fhwa.saxton.carma.guidance.util.RouteService;
+import gov.dot.fhwa.saxton.carma.guidance.util.V2IService;
 import gov.dot.fhwa.saxton.carma.guidance.util.trajectoryconverter.ITrajectoryConverter;
 
 public class SpeedGeneratorTest {
@@ -62,7 +64,7 @@ public class SpeedGeneratorTest {
                                        new ManeuverPlanner(mock(IGuidanceCommands.class), mockManeuverInputs),
                                        mockRouteService, mock(IMobilityRouter.class), mock(IConflictDetector.class),
                                        mock(ITrajectoryConverter.class), mock(ILightBarManager.class),
-                                       mock(TrackingService.class));
+                                       mock(TrackingService.class), mock(V2IService.class), mock(ITimeProvider.class));
         mockPlugin.timeHeadway = 1.0;
         mockPlugin.standStillHeadway = 5.0;
         mockPlugin.kpPID = 1.0;
