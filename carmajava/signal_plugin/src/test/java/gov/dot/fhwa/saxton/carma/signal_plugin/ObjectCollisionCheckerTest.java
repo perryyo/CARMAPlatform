@@ -88,10 +88,10 @@ public class ObjectCollisionCheckerTest {
   public void testUpdateObjects() throws Exception {
 
     IMotionInterpolator planInterpolator = new PlanInterpolator();
-    IMotionPredictorModelFactory motionPredictorFactory = new DefaultMotionPredictorFactory(mock(IGlidepathAppConfig.class));
 
     PluginServiceLocator        psl = mock(PluginServiceLocator.class);
     ParameterSource             ps = mock(ParameterSource.class);
+    IMotionPredictorModelFactory motionPredictorFactory = new DefaultMotionPredictorFactory(ps);
     RouteService                rs = mock(RouteService.class);
     ITimeProvider               tp = mock(ITimeProvider.class);
     IMobilityTimeProvider mobilityTimeProvider = mock(IMobilityTimeProvider.class);
