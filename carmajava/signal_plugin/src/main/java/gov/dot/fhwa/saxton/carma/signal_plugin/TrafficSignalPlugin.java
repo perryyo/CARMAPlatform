@@ -56,6 +56,7 @@ import gov.dot.fhwa.saxton.carma.signal_plugin.asd.spat.LaneSet;
 import gov.dot.fhwa.saxton.carma.signal_plugin.asd.spat.Movement;
 import gov.dot.fhwa.saxton.carma.signal_plugin.asd.spat.SpatMessage;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.EadAStar;
+import gov.dot.fhwa.saxton.carma.signal_plugin.ead.PlanInterpolator;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.trajectorytree.Node;
 import gov.dot.fhwa.saxton.carma.signal_plugin.filter.PolyHoloA;
 import sensor_msgs.NavSatFix;
@@ -78,6 +79,7 @@ public class TrafficSignalPlugin extends AbstractPlugin implements IStrategicPlu
     private EadAStar ead;
     private double operSpeedScalingFactor = 1.0;
     private double speedCommandQuantizationFactor = 0.1;
+    private ObjectCollisionChecker collisionChecker; // Collision checker responsible for tracking NCVs and providing collision checks capabilities
 
     public TrafficSignalPlugin(PluginServiceLocator psl) {
         super(psl);
@@ -91,7 +93,13 @@ public class TrafficSignalPlugin extends AbstractPlugin implements IStrategicPlu
     public void onInitialize() {
         // load params
 
-        log.info("STARTUP", "TrafficSignalPlugin has been initialized.");
+        // Setup the collision checker
+        // This must be done before callbacks are created
+        this.collisionChecker = new ObjectCollisionChecker(
+            this.pluginServiceLocator,
+            new DefaultMotionPredictorFactory(this.pluginServiceLocator.getParameterSource()),
+            new PlanInterpolator()
+        );
         // log the key params here
         pluginServiceLocator.getV2IService().registerV2IDataCallback(this::handleNewIntersectionData);
         setAvailability(false);
@@ -109,13 +117,15 @@ public class TrafficSignalPlugin extends AbstractPlugin implements IStrategicPlu
             velFilter.addRawDataPoint(msg.getTwist().getLinear().getX());
         });
 
-        ead = new EadAStar();
+        ead = new EadAStar(collisionChecker);
         try {
             glidepathTrajectory = new gov.dot.fhwa.saxton.carma.signal_plugin.ead.Trajectory(ead);
         } catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+
+        log.info("STARTUP", "TrafficSignalPlugin has been initialized.");
     }
 
     /**
@@ -451,6 +461,7 @@ public class TrafficSignalPlugin extends AbstractPlugin implements IStrategicPlu
 
         // GET NODES OUT OF EADASTAR
         List<Node> eadResult = ead.getCurrentPath();
+        collisionChecker.setHostPlan(eadResult); // Update the host plan in the collision checker
 
         /*
          * Optimization has been decided against due to complexities in trajectory behavior.

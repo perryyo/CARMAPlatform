@@ -22,7 +22,6 @@ import gov.dot.fhwa.saxton.carma.guidance.util.ITimeProvider;
 import gov.dot.fhwa.saxton.carma.guidance.util.LoggerManager;
 import gov.dot.fhwa.saxton.carma.guidance.util.RouteService;
 import gov.dot.fhwa.saxton.carma.guidance.util.trajectoryconverter.RoutePointStamped;
-import gov.dot.fhwa.saxton.carma.rosutils.SaxtonLogger;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.IMotionInterpolator;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.IMotionPredictor;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.INodeCollisionChecker;

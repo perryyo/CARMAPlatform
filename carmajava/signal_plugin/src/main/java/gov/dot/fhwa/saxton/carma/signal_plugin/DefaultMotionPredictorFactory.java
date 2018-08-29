@@ -15,7 +15,8 @@
  */
 package gov.dot.fhwa.saxton.carma.signal_plugin;
 import java.io.IOException;
-import gov.dot.fhwa.saxton.carma.signal_plugin.appcommon.IGlidepathAppConfig;
+
+import gov.dot.fhwa.saxton.carma.guidance.params.ParameterSource;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.IMotionPredictor;
 import gov.dot.fhwa.saxton.carma.signal_plugin.ead.SimpleNCVMotionPredictor;
 /**
@@ -24,14 +25,14 @@ import gov.dot.fhwa.saxton.carma.signal_plugin.ead.SimpleNCVMotionPredictor;
 * Used to determine how an NCVs motion will be predicted in the Traffic Signal Plugin
 */
 public class DefaultMotionPredictorFactory implements IMotionPredictorModelFactory{
-  private final IGlidepathAppConfig config;
+  private final ParameterSource parameterSource;
   /**
   * Constructor
   * 
-  * @param config A IGlidepathAppConfig config allowing parameters for requested prediction models to be loaded
+  * @param parameterSource A parameter source allowing parameters for requested prediction models to be loaded
   */
- public DefaultMotionPredictorFactory(IGlidepathAppConfig config) {
-   this.config = config;
+ public DefaultMotionPredictorFactory(ParameterSource parameterSource) {
+   this.parameterSource = parameterSource;
  }
   /**
   * Create a new instance of IMotionPredictor
